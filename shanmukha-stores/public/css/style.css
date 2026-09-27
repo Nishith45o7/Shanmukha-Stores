@@ -173,6 +173,12 @@ body {
 .brand-icon {
   width: 34px;
   height: 34px;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+
+.brand-logo:hover .brand-icon {
+  transform: scale(1.05);
 }
 
 .brand-text {
@@ -1724,6 +1730,38 @@ body {
   background: var(--gray-50);
 }
 
+.btn-continue-shopping {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 26px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1c4a30;
+  border: 1.8px solid #1c4a30;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(28, 74, 48, 0.08);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.btn-continue-shopping svg {
+  transition: transform 0.25s ease;
+}
+
+.btn-continue-shopping:hover {
+  background: #1c4a30;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(28, 74, 48, 0.22);
+}
+
+.btn-continue-shopping:hover svg {
+  transform: translateX(-4px);
+}
+
 .btn-outline {
   display: inline-flex;
   align-items: center;
@@ -1802,6 +1840,13 @@ body {
   padding: 60px 5%;
   max-width: 1000px;
   margin: 0 auto;
+}
+
+.order-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
 .order-card {
@@ -2759,25 +2804,73 @@ body {
   display: flex;
   gap: 10px;
   margin-top: 20px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .footer-social-btn {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
-  color: rgba(255, 255, 255, 0.4);
-  transition: var(--transition);
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.03);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
+}
+
+.footer-social-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+  transition: transform 0.25s ease;
+  display: block;
 }
 
 .footer-social-btn:hover {
-  border-color: rgba(255, 255, 255, 0.4);
-  color: #fff;
-  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-2px);
+}
+
+.footer-social-btn:hover svg {
+  transform: scale(1.12);
+}
+
+.footer-social-btn.facebook:hover {
+  color: #1877f2;
+  border-color: rgba(24, 119, 242, 0.5);
+  background: rgba(24, 119, 242, 0.12);
+  box-shadow: 0 4px 12px rgba(24, 119, 242, 0.25);
+}
+
+.footer-social-btn.instagram:hover {
+  color: #e1306c;
+  border-color: rgba(225, 48, 108, 0.5);
+  background: rgba(225, 48, 108, 0.12);
+  box-shadow: 0 4px 12px rgba(225, 48, 108, 0.25);
+}
+
+.footer-social-btn.x-twitter:hover {
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
+.footer-social-btn.youtube:hover {
+  color: #ff0000;
+  border-color: rgba(255, 0, 0, 0.5);
+  background: rgba(255, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(255, 0, 0, 0.25);
+}
+
+.footer-social-btn.whatsapp:hover {
+  color: #25d366;
+  border-color: rgba(37, 211, 102, 0.5);
+  background: rgba(37, 211, 102, 0.12);
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.25);
 }
 
 .footer-column h4 {
@@ -2922,32 +3015,78 @@ body {
 /* ── SCROLL TO TOP ── */
 .scroll-top {
   position: fixed;
-  bottom: 80px;
-  right: 24px;
-  z-index: 500;
-  width: 42px;
-  height: 42px;
+  bottom: 96px;
+  right: 31px;
+  z-index: 1044;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
-  background: var(--black);
-  color: #fff;
-  font-size: 18px;
+  background: rgba(18, 28, 22, 0.94);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: var(--shadow-md);
+  cursor: pointer;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s, transform 0.3s;
+  transform: translateY(12px) scale(0.9);
+  transition: bottom 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.25s ease,
+              transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.2s ease,
+              border-color 0.2s ease,
+              box-shadow 0.2s ease;
+}
+
+.scroll-top svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  transition: transform 0.2s ease;
 }
 
 .scroll-top.visible {
   opacity: 1;
   pointer-events: all;
+  transform: translateY(0) scale(1);
 }
 
 .scroll-top:hover {
-  background: var(--green);
-  transform: translateY(-3px);
+  background: #1c4a30;
+  border-color: rgba(255, 255, 255, 0.32);
+  color: #ffffff;
+  box-shadow: 0 12px 28px rgba(28, 74, 48, 0.42);
+}
+
+.scroll-top:hover svg {
+  transform: translateY(-2px);
+}
+
+.scroll-top:active {
+  transform: scale(0.94);
+}
+
+/* Dynamic offset when floating cart has items so they never collide */
+body:has(#swiggyFloatingCart.has-items) .scroll-top,
+.scroll-top.has-cart-offset {
+  bottom: 168px;
+}
+
+/* Never show floating cart on Cart or Checkout pages */
+body:has(.cart-section) #swiggyFloatingCart,
+body:has(.checkout-modern) #swiggyFloatingCart,
+body:has(.scan-pay-container) #swiggyFloatingCart,
+body:has(.order-success-card) #swiggyFloatingCart,
+.cart-section ~ #swiggyFloatingCart,
+.checkout-modern ~ #swiggyFloatingCart {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 /* ── GLOBAL ANIMATIONS ── */
@@ -3403,8 +3542,25 @@ body {
 
   .order-meta-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .orders-section {
+    padding: 24px 16px 80px;
+  }
+
+  .scroll-top {
+    bottom: 84px;
+    right: 24px;
+    width: 40px;
+    height: 40px;
+  }
+
+  body:has(#swiggyFloatingCart.has-items) .scroll-top,
+  .scroll-top.has-cart-offset {
+    bottom: 150px;
+    right: 24px;
   }
   
   .order-info-grid {
@@ -3542,6 +3698,101 @@ select,
     animation-duration: 8s !important;
     will-change: transform;
   }
+}
+
+/* ============================================================
+   CORE WEB VITALS: ZERO CLS & RENDERING STABILIZATION RULES
+   ============================================================ */
+
+/* 1. Hero & Media Space Reservation */
+.hero-visual {
+  min-height: 380px;
+  contain: layout;
+}
+
+.main-banner-visual {
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 14 / 9.5;
+  background: #ede8dc;
+  border-radius: var(--radius-xl, 24px);
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.floating-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 2. Product Grid Zero Layout Shift */
+.products-luxury-grid .img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #f4f2ec;
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.products-luxury-grid .img-wrap img,
+.products-luxury-grid .img-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 3. Ads & Partners Space Reservation */
+.ad-card-luxury {
+  aspect-ratio: 16 / 9;
+  background: #111;
+  border-radius: var(--radius-xl, 20px);
+  overflow: hidden;
+  contain: layout paint;
+}
+
+.collab-item {
+  contain: layout size;
+}
+
+/* 4. Marquee Header Stabilization */
+.marquee-strip {
+  min-height: 41px;
+  contain: layout size;
+}
+
+/* 5. Desktop Content Visibility for Offscreen Elements */
+@media (min-width: 769px) {
+  .luxury-quote-section,
+  .collab-section,
+  .main-footer,
+  .ads-luxury-grid {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 400px;
+  }
+}
+
+/* 6. Font Metric Fallback (Eliminates FOUT/FOIT Layout Shift) */
+@font-face {
+  font-family: 'Playfair Fallback';
+  src: local('Georgia'), local('Times New Roman');
+  ascent-override: 95%;
+  descent-override: 25%;
+  line-gap-override: 0%;
+  size-adjust: 102%;
+}
+
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('Helvetica');
+  ascent-override: 90%;
+  descent-override: 22%;
+  line-gap-override: 0%;
+  size-adjust: 100%;
 }
 
 

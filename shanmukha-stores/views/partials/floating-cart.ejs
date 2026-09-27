@@ -1,3 +1,13 @@
+<% 
+  const isCartOrCheckoutPage = (typeof title !== 'undefined' && title && (
+    title.toLowerCase().includes('cart') || 
+    title.toLowerCase().includes('checkout') || 
+    title.toLowerCase().includes('scan') || 
+    title.toLowerCase().includes('confirmation') || 
+    title.toLowerCase().includes('success')
+  ));
+%>
+<% if (!isCartOrCheckoutPage) { %>
 <% const currentCartCount = (typeof cartCount !== 'undefined') ? Number(cartCount) : 0; %>
 
 <!-- SWIGGY / BLINKIT STYLE FLOATING CART -->
@@ -32,7 +42,7 @@
   .swiggy-floating-cart-wrapper {
     position: fixed;
     bottom: 24px;
-    right: 28px;
+    right: 24px;
     z-index: 1040;
     transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
     filter: drop-shadow(0 14px 28px rgba(28, 74, 48, 0.28));
@@ -46,12 +56,25 @@
     transform: translateY(24px) scale(0.85);
   }
 
-  /* Visible everywhere until checkout/ordered */
+  /* Visible on catalog/shop pages until checkout/cart */
   .swiggy-floating-cart-wrapper.has-items {
     display: block !important;
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0) scale(1);
+  }
+
+  /* Explicit suppression on Cart and Checkout pages */
+  body:has(.cart-section) #swiggyFloatingCart,
+  body:has(.checkout-modern) #swiggyFloatingCart,
+  body:has(.scan-pay-container) #swiggyFloatingCart,
+  body:has(.order-success-card) #swiggyFloatingCart,
+  .cart-section ~ #swiggyFloatingCart,
+  .checkout-modern ~ #swiggyFloatingCart {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
   }
 
   .swiggy-floating-cart-inner {
@@ -230,15 +253,22 @@
 
 <script>
   (function () {
-    const currentPath = window.location.pathname;
+    const currentPath = window.location.pathname.toLowerCase();
     const floatingCart = document.getElementById('swiggyFloatingCart');
 
     // Do not show floating button if already on /cart or in checkout flow
-    if (currentPath === '/cart' || currentPath.startsWith('/orders/checkout') || currentPath.startsWith('/orders/success')) {
+    if (
+      currentPath.includes('/cart') || 
+      currentPath.includes('/checkout') || 
+      currentPath.includes('/scan-pay') || 
+      currentPath.includes('/orders/success') ||
+      document.querySelector('.cart-section, .checkout-modern, .scan-pay-container, .order-success-card')
+    ) {
       if (floatingCart) {
-        floatingCart.style.display = 'none';
-        return;
+        floatingCart.style.setProperty('display', 'none', 'important');
+        try { floatingCart.remove(); } catch (e) {}
       }
+      return;
     }
 
     // Helper for floating luxury toast
@@ -251,7 +281,7 @@
       if (!t) {
         t = document.createElement('div');
         t.id = 'swiggyFloatingToast';
-        t.style.cssText = 'position:fixed;bottom:90px;right:28px;background:linear-gradient(135deg,#1c4a30,#153c26);color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:0 10px 24px rgba(0,0,0,0.22);z-index:999999;transition:all 0.3s ease;opacity:0;transform:translateY(10px);border:1px solid rgba(255,255,255,0.18);display:flex;align-items:center;gap:8px;';
+        t.style.cssText = 'position:fixed;bottom:148px;right:24px;background:linear-gradient(135deg,#1c4a30,#153c26);color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:0 10px 24px rgba(0,0,0,0.22);z-index:999999;transition:all 0.3s ease;opacity:0;transform:translateY(10px);border:1px solid rgba(255,255,255,0.18);display:flex;align-items:center;gap:8px;';
         document.body.appendChild(t);
       }
       t.innerHTML = '<span>🛒</span> ' + msg;
@@ -394,6 +424,8 @@
               floatingCart.classList.remove('is-empty');
               floatingCart.classList.add('has-items');
               floatingCart.style.display = 'block';
+              const scrollTopBtn = document.getElementById('scrollTop');
+              if (scrollTopBtn) scrollTopBtn.classList.add('has-cart-offset');
             }
 
             // Also update Desktop & Mobile Navbar Cart Badges if present (Target only navbar badges, never spans inside floating cart!)
@@ -428,3 +460,4 @@
     });
   })();
 </script>
+<% } %>

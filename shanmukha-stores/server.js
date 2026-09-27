@@ -316,6 +316,8 @@ const ensureDatabaseSchema = async () => {
   await pool.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT");
   await pool.query("ALTER TABLE collaborations ADD COLUMN IF NOT EXISTS website TEXT");
   await pool.query("ALTER TABLE collaborations ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE");
+  await pool.query("ALTER TABLE users ALTER COLUMN password DROP NOT NULL");
 
   await pool.query("ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_cart_id_product_id_key");
   try {
@@ -363,13 +365,63 @@ const publicDirs = [
   try { return require("fs").existsSync(d); } catch (e) { return false; }
 });
 
+// Next-Gen Dynamic Image Optimizer (Sharp AVIF/WebP with aspect retention)
+app.get("/img-optimize", async (req, res) => {
+  try {
+    const { src, w, q = 80 } = req.query;
+    if (!src) return res.status(400).send("Missing src parameter");
+
+    // Clean and validate relative path inside public directory
+    const cleanSrc = String(src).replace(/^(\.\.[\/\\])+/, "").replace(/^\/+/, "");
+    const safePath = path.join(__dirname, "public", cleanSrc);
+
+    if (!require("fs").existsSync(safePath)) {
+      return res.status(404).send("Image not found");
+    }
+
+    const width = parseInt(w, 10) || null;
+    const accept = req.headers.accept || "";
+    const format = accept.includes("image/avif") ? "avif" : "webp";
+
+    res.setHeader("Content-Type", `image/${format}`);
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+
+    const sharp = require("sharp");
+    let transform = sharp(safePath);
+    if (width && width > 0 && width <= 2400) {
+      transform = transform.resize(width, null, { withoutEnlargement: true });
+    }
+
+    if (format === "avif") {
+      transform = transform.avif({ quality: Math.min(100, Math.max(20, parseInt(q, 10) || 75)) });
+    } else {
+      transform = transform.webp({ quality: Math.min(100, Math.max(20, parseInt(q, 10) || 80)) });
+    }
+
+    transform.pipe(res);
+  } catch (err) {
+    console.error("img-optimize error:", err.message);
+    res.status(500).send("Image processing error");
+  }
+});
+
+// Tiered Caching Strategy (Immutable Assets + Stale-While-Revalidate)
 const staticCacheOptions = {
-  maxAge: "30d",
+  maxAge: "1y",
   etag: true,
   lastModified: true,
   setHeaders: (res, filePath) => {
-    if (/\.(webp|png|jpg|jpeg|svg|gif|ico|css|js|woff|woff2|ttf|mp4|webm)$/i.test(filePath)) {
-      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+    // 1. Immutable Media, Fonts, WebP/AVIF, Icons, Videos (1 Year)
+    if (/\.(woff|woff2|ttf|otf|mp4|webm|avif|webp|svg|png|jpg|jpeg|ico|gif)$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    }
+    // 2. CSS & JS (7 Days with Stale-While-Revalidate for Instant Next Loads)
+    else if (/\.(css|js)$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "public, max-age=604800, stale-while-revalidate=86400");
+    }
+    // 3. User Uploads (30 Days with Revalidation)
+    else if (filePath.includes("uploads")) {
+      res.setHeader("Cache-Control", "public, max-age=2592000, stale-while-revalidate=604800");
     }
   },
 };
@@ -408,7 +460,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: "auto",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })
@@ -419,6 +471,7 @@ app.use((req, res, next) => {
     req.session.csrfToken = crypto.randomBytes(32).toString("hex");
   }
   res.locals.csrfToken = req.session.csrfToken;
+  res.locals.googleClientId = process.env.GOOGLE_CLIENT_ID || "";
   next();
 });
 

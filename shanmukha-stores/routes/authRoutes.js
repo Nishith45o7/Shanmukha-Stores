@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { OAuth2Client } = require("google-auth-library");
 const pool = require("../config/db");
 const { sendPasswordResetEmail, sendVerificationEmail } = require("../utils/mailer");
 const { sendOTP, verifyOTP } = require("../utils/msg91Service");
@@ -506,15 +507,195 @@ router.post("/resend-verification", authLimiter, async (req, res) => {
 });
 
 /* ===============================
-   GOOGLE OAUTH
+   GOOGLE OAUTH (Modern GIS SDK + google-auth-library)
 =============================== */
-router.get("/google", (req, res) => {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const callbackUrl = process.env.GOOGLE_CALLBACK_URL || `${req.protocol}://${req.get("host")}/auth/google/callback`;
 
-  if (!clientId || clientId === "your_google_client_id") {
-    return res.redirect("/auth/login?error=" + encodeURIComponent("Google Sign-In is not configured yet. Please login with email/password or configure Google OAuth credentials."));
+// Helper to instantiate Google OAuth2Client
+function getGoogleAuthClient(redirectUri = "postmessage") {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  if (!clientId) return null;
+  return new OAuth2Client(clientId, clientSecret, redirectUri);
+}
+
+// POST /auth/google - Called from the custom button popup (code or credential token)
+router.post("/google", authLimiter, async (req, res) => {
+  try {
+    const { code, credential } = req.body;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+
+    if (!clientId || clientId === "your_google_client_id") {
+      return res.status(400).json({
+        success: false,
+        message: "Google Sign-In is not configured yet on the server. Please configure GOOGLE_CLIENT_ID in .env.",
+      });
+    }
+
+    let payload = null;
+
+    // 1. If authorization code received from google.accounts.oauth2.initCodeClient popup
+    if (code) {
+      const oauth2Client = getGoogleAuthClient("postmessage");
+      const { tokens } = await oauth2Client.getToken(code);
+      
+      if (!tokens || !tokens.id_token) {
+        return res.status(401).json({
+          success: false,
+          message: "No ID token received from Google.",
+        });
+      }
+
+      const ticket = await oauth2Client.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: clientId,
+      });
+      payload = ticket.getPayload();
+    }
+    // 2. If direct ID Token / Credential received (e.g., from One Tap)
+    else if (credential) {
+      const oauth2Client = getGoogleAuthClient();
+      const ticket = await oauth2Client.verifyIdToken({
+        idToken: credential,
+        audience: clientId,
+      });
+      payload = ticket.getPayload();
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Missing Google authorization code or token.",
+      });
+    }
+
+    if (!payload || !payload.email) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to extract email profile from Google token.",
+      });
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email.toLowerCase().trim();
+    const isEmailVerified = payload.email_verified;
+    const fullName = payload.name || "Customer";
+    const profileImage = payload.picture || null;
+
+    // Security check: Never trust unverified Google emails for automated account linking
+    if (!isEmailVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Your Google email address is unverified.",
+      });
+    }
+
+    // Find existing user by google_id or email
+    const userResult = await pool.query(
+      "SELECT * FROM users WHERE google_id = $1 OR email = $2",
+      [googleId, email]
+    );
+
+    let user;
+
+    if (userResult.rows.length === 0) {
+      // Create new user (password is nullable for OAuth accounts)
+      const insertResult = await pool.query(
+        `INSERT INTO users (full_name, email, google_id, role, is_verified, profile_image)
+         VALUES ($1, $2, $3, 'user', true, $4)
+         RETURNING *`,
+        [fullName, email, googleId, profileImage]
+      );
+      user = insertResult.rows[0];
+    } else {
+      user = userResult.rows[0];
+
+      if (user.is_blocked) {
+        return res.status(403).json({
+          success: false,
+          message: "Your account has been suspended. Please contact support.",
+        });
+      }
+
+      // Link google_id if account was originally created with password
+      if (!user.google_id || !user.is_verified || (profileImage && !user.profile_image)) {
+        await pool.query(
+          `UPDATE users 
+           SET google_id = COALESCE(google_id, $1),
+               is_verified = true,
+               profile_image = COALESCE(profile_image, $2)
+           WHERE id = $3`,
+          [googleId, profileImage, user.id]
+        );
+      }
+    }
+
+    // Session Fixation Defense: regenerate session ID on privilege transition
+    const returnTo = req.session ? req.session.returnTo : null;
+
+    req.session.regenerate(async (err) => {
+      if (err) {
+        console.error("Session regeneration error:", err);
+        return res.status(500).json({
+          success: false,
+          message: "Failed to establish secure session.",
+        });
+      }
+
+      req.session.user = {
+        id: user.id,
+        name: user.full_name,
+        role: user.role || "user",
+        profile_image: user.profile_image || profileImage,
+      };
+
+      // Staff or Admin audit log
+      if (user.role === "admin" || user.role === "staff") {
+        try {
+          await pool.query(
+            "INSERT INTO staff_activities (user_id, action, details) VALUES ($1, $2, $3)",
+            [
+              user.id,
+              user.role === "admin" ? "Admin Google Login" : "Staff Google Login",
+              JSON.stringify({
+                role: user.role,
+                email: user.email,
+                google_id: googleId,
+                ip: req.ip || null,
+                user_agent: req.get("user-agent") || null,
+              }),
+            ]
+          );
+        } catch (logErr) {
+          console.warn("Staff activity log error:", logErr.message);
+        }
+      }
+
+      let redirectUrl = "/";
+      if (user.role === "admin") {
+        redirectUrl = "/admin/dashboard";
+      } else if (user.role === "staff") {
+        redirectUrl = "/staff/dashboard";
+      } else if (returnTo) {
+        redirectUrl = returnTo;
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Successfully signed in with Google.",
+        redirectUrl,
+      });
+    });
+  } catch (err) {
+    console.error("Google Auth Verification Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || "Failed to authenticate with Google.",
+    });
   }
+});
+
+// GET /auth/google - Direct navigation to Google's OAuth consent screen
+router.get("/google", (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID || "your_google_client_id";
+  const callbackUrl = process.env.GOOGLE_CALLBACK_URL || `${req.protocol}://${req.get("host")}/auth/google/callback`;
 
   const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
     `client_id=${encodeURIComponent(clientId)}` +
@@ -522,11 +703,12 @@ router.get("/google", (req, res) => {
     `&response_type=code` +
     `&scope=${encodeURIComponent("openid email profile")}` +
     `&access_type=offline` +
-    `&prompt=consent`;
+    `&prompt=select_account`;
 
   return res.redirect(googleAuthUrl);
 });
 
+// GET /auth/google/callback - Fallback redirect callback handler
 router.get("/google/callback", async (req, res) => {
   try {
     const { code, error } = req.query;
@@ -542,44 +724,41 @@ router.get("/google/callback", async (req, res) => {
       return res.redirect("/auth/login?error=" + encodeURIComponent("Google OAuth credentials are not fully configured."));
     }
 
-    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: callbackUrl,
-        grant_type: "authorization_code",
-      }),
-    });
+    const oauth2Client = new OAuth2Client(clientId, clientSecret, callbackUrl);
+    const { tokens } = await oauth2Client.getToken(code);
 
-    const tokenData = await tokenRes.json();
-    if (!tokenRes.ok || !tokenData.access_token) {
-      console.error("Google token error:", tokenData);
-      return res.redirect("/auth/login?error=" + encodeURIComponent("Failed to authenticate with Google."));
+    if (!tokens || !tokens.id_token) {
+      return res.redirect("/auth/login?error=" + encodeURIComponent("Failed to retrieve ID token from Google."));
     }
 
-    const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    const ticket = await oauth2Client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: clientId,
     });
-    const profile = await userRes.json();
+    const payload = ticket.getPayload();
 
-    if (!profile.email) {
+    if (!payload || !payload.email) {
       return res.redirect("/auth/login?error=" + encodeURIComponent("Could not retrieve email from Google."));
     }
 
-    const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [profile.email]);
+    const googleId = payload.sub;
+    const email = payload.email.toLowerCase().trim();
+    const fullName = payload.name || "Customer";
+    const profileImage = payload.picture || null;
+
+    const userResult = await pool.query(
+      "SELECT * FROM users WHERE google_id = $1 OR email = $2",
+      [googleId, email]
+    );
+
     let user;
 
     if (userResult.rows.length === 0) {
-      const crypto = require("crypto");
-      const randomPassword = crypto.randomBytes(16).toString("hex");
-      const hashedPassword = await bcrypt.hash(randomPassword, 12);
-      
       const insertResult = await pool.query(
-        "INSERT INTO users (full_name, email, password, role, is_verified, profile_image) VALUES ($1, $2, $3, 'user', true, $4) RETURNING *",
-        [profile.name || "Google User", profile.email, hashedPassword, profile.picture || null]
+        `INSERT INTO users (full_name, email, google_id, role, is_verified, profile_image) 
+         VALUES ($1, $2, $3, 'user', true, $4) 
+         RETURNING *`,
+        [fullName, email, googleId, profileImage]
       );
       user = insertResult.rows[0];
     } else {
@@ -587,27 +766,36 @@ router.get("/google/callback", async (req, res) => {
       if (user.is_blocked) {
         return res.redirect("/auth/login?error=" + encodeURIComponent("Your account has been blocked."));
       }
-      if (!user.is_verified || (profile.picture && !user.profile_image)) {
+      if (!user.google_id || !user.is_verified || (profileImage && !user.profile_image)) {
         await pool.query(
-          "UPDATE users SET is_verified = true, profile_image = COALESCE(profile_image, $1) WHERE id = $2",
-          [profile.picture || null, user.id]
+          `UPDATE users 
+           SET google_id = COALESCE(google_id, $1), 
+               is_verified = true, 
+               profile_image = COALESCE(profile_image, $2) 
+           WHERE id = $3`,
+          [googleId, profileImage, user.id]
         );
       }
     }
 
-    req.session.user = {
-      id: user.id,
-      name: user.full_name,
-      role: user.role || "user",
-      profile_image: user.profile_image || profile.picture || null,
-    };
+    req.session.regenerate(async (err) => {
+      if (err) {
+        console.error("Session regeneration error in callback:", err);
+      }
+      req.session.user = {
+        id: user.id,
+        name: user.full_name,
+        role: user.role || "user",
+        profile_image: user.profile_image || profileImage,
+      };
 
-    if (user.role === "admin") {
-      return res.redirect("/admin/dashboard");
-    } else if (user.role === "staff") {
-      return res.redirect("/staff/dashboard");
-    }
-    return res.redirect("/");
+      if (user.role === "admin") {
+        return res.redirect("/admin/dashboard");
+      } else if (user.role === "staff") {
+        return res.redirect("/staff/dashboard");
+      }
+      return res.redirect("/");
+    });
   } catch (err) {
     console.error("Google callback error:", err);
     return res.redirect("/auth/login?error=" + encodeURIComponent("Google login failed. Please try again."));

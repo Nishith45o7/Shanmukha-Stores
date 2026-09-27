@@ -1,0 +1,216 @@
+<% 
+  const rawPhone = (typeof settings !== 'undefined' && settings && settings.store_phone && settings.store_phone.trim()) 
+    ? settings.store_phone.replace(/\D/g, '') 
+    : '8886383838';
+  const waPhone = rawPhone.length === 10 ? ('91' + rawPhone) : rawPhone;
+  const waMessage = encodeURIComponent("Hello Shanmukha Stores! I would like to inquire about your products and services.");
+  const waUrl = `https://wa.me/${waPhone}?text=${waMessage}`;
+%>
+
+<!-- FLOATING WHATSAPP BUTTON (MATCHING REFERENCE EXACTLY) -->
+<a href="<%= waUrl %>" 
+   target="_blank" 
+   rel="noopener noreferrer" 
+   class="floating-whatsapp-btn" 
+   id="floatingWhatsapp" 
+   aria-label="Chat with Shanmukha Stores on WhatsApp (+91 88863 83838)" 
+   title="Chat with us on WhatsApp">
+  
+  <!-- Subtle Tooltip Label on Hover (Desktop) -->
+  <span class="whatsapp-tooltip">
+    <span class="online-dot"></span>
+    <span>Chat with us</span>
+  </span>
+
+  <!-- Pulse Effect Ring -->
+  <span class="whatsapp-pulse-ring"></span>
+
+  <!-- Official WhatsApp Circular Badge & SVG Icon -->
+  <div class="whatsapp-icon-wrapper">
+    <svg class="whatsapp-svg" width="34" height="34" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path fill-rule="evenodd" clip-rule="evenodd" d="M16 2C8.268 2 2 8.268 2 16c0 2.627.72 5.086 1.97 7.19L2 30l7.025-1.928A13.93 13.93 0 0016 30c7.732 0 14-6.268 14-14S23.732 2 16 2zm0 25.592c-2.316 0-4.484-.658-6.326-1.796l-.454-.28-4.664 1.28 1.278-4.55-.303-.474A11.536 11.536 0 014.408 16C4.408 9.608 9.608 4.408 16 4.408c6.392 0 11.592 5.2 11.592 11.592 0 6.392-5.2 11.592-11.592 11.592zm6.368-8.674c-.348-.174-2.062-1.018-2.382-1.134-.32-.116-.552-.174-.784.174-.232.348-.9 1.134-1.104 1.366-.204.232-.406.262-.754.088-.348-.174-1.47-.542-2.8-1.728-1.036-.924-1.736-2.064-1.94-2.412-.204-.348-.022-.536.152-.71.156-.156.348-.406.522-.61.174-.204.232-.348.348-.58.116-.232.058-.436-.03-.61-.088-.174-.784-1.89-1.074-2.586-.282-.676-.57-.584-.784-.594l-.668-.012c-.232 0-.61.088-.93.436-.32.348-1.22 1.192-1.22 2.908s1.25 3.372 1.424 3.604c.174.232 2.458 3.754 5.956 5.264.832.36 1.482.574 1.99.734.836.266 1.596.228 2.2.138.672-.1 2.062-.842 2.352-1.654.29-.812.29-1.508.204-1.654-.088-.146-.32-.232-.668-.406z" fill="#ffffff"/>
+    </svg>
+  </div>
+</a>
+
+<style>
+  /* ── FLOATING WHATSAPP BUTTON ── */
+  .floating-whatsapp-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 1045;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: bottom 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+                transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                filter 0.25s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .whatsapp-icon-wrapper {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #2fe674 0%, #25D366 50%, #128C7E 100%);
+    box-shadow: 0 8px 24px rgba(37, 211, 102, 0.42), 0 3px 8px rgba(0, 0, 0, 0.16);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.25s ease;
+    position: relative;
+    z-index: 2;
+  }
+
+  .floating-whatsapp-btn:hover .whatsapp-icon-wrapper {
+    transform: scale(1.08) translateY(-2px);
+    box-shadow: 0 14px 32px rgba(37, 211, 102, 0.55), 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  .floating-whatsapp-btn:active .whatsapp-icon-wrapper {
+    transform: scale(0.95);
+  }
+
+  .whatsapp-svg {
+    width: 34px;
+    height: 34px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+  }
+
+  /* Gentle Pulse Effect */
+  .whatsapp-pulse-ring {
+    position: absolute;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: rgba(37, 211, 102, 0.4);
+    animation: waPulse 2.8s infinite cubic-bezier(0.4, 0, 0.6, 1);
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  @keyframes waPulse {
+    0% {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+    50% {
+      transform: scale(1.35);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 0;
+    }
+  }
+
+  /* Desktop Tooltip Badge */
+  .whatsapp-tooltip {
+    position: absolute;
+    right: calc(100% + 14px);
+    background: #111827;
+    color: #ffffff;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(8px);
+    transition: all 0.22s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .whatsapp-tooltip::after {
+    content: '';
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: transparent transparent transparent #111827;
+  }
+
+  .online-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #25D366;
+    box-shadow: 0 0 6px #25D366;
+  }
+
+  .floating-whatsapp-btn:hover .whatsapp-tooltip {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* Dynamic Stacking when Swiggy Floating Cart has items */
+  body:has(#swiggyFloatingCart.has-items) .floating-whatsapp-btn,
+  .floating-whatsapp-btn.has-cart-offset {
+    bottom: 96px;
+  }
+
+  /* Responsive positioning */
+  @media (max-width: 640px) {
+    .floating-whatsapp-btn {
+      bottom: 20px;
+      right: 18px;
+    }
+
+    .whatsapp-icon-wrapper {
+      width: 52px;
+      height: 52px;
+    }
+
+    .whatsapp-svg {
+      width: 30px;
+      height: 30px;
+    }
+
+    .whatsapp-pulse-ring {
+      width: 52px;
+      height: 52px;
+    }
+
+    .whatsapp-tooltip {
+      display: none; /* Hide hover tooltip on touch devices */
+    }
+
+    body:has(#swiggyFloatingCart.has-items) .floating-whatsapp-btn,
+    .floating-whatsapp-btn.has-cart-offset {
+      bottom: 86px;
+      right: 18px;
+    }
+  }
+</style>
+
+<script>
+  // Dynamic offset sync if browser doesn't support :has()
+  (function () {
+    const waBtn = document.getElementById('floatingWhatsapp');
+    function syncWaPosition() {
+      const cart = document.getElementById('swiggyFloatingCart');
+      if (waBtn) {
+        const hasCart = cart && cart.classList.contains('has-items') && cart.style.display !== 'none';
+        waBtn.classList.toggle('has-cart-offset', Boolean(hasCart));
+      }
+    }
+    document.addEventListener('DOMContentLoaded', syncWaPosition);
+    window.addEventListener('load', syncWaPosition);
+    const cartEl = document.getElementById('swiggyFloatingCart');
+    if (cartEl && window.MutationObserver) {
+      new MutationObserver(syncWaPosition).observe(cartEl, { attributes: true, attributeFilter: ['class', 'style'] });
+    }
+  })();
+</script>

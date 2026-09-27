@@ -15,22 +15,54 @@ const requireAuth = (req, res, next) => {
 };
 
 // ============================================================
-// CITY MINIMUMS CONFIG
 // ============================================================
-const CITY_RULES = {
-  vijayawada: { minAmount: 200, minItems: 1 },
-  tadepalli: { minAmount: 590, minItems: 3 },
-  kanuru: { minAmount: 590, minItems: 3 },
-  penamaluru: { minAmount: 590, minItems: 3 },
-  poranki: { minAmount: 590, minItems: 3 },
-  default: { minAmount: 1500, minItems: 5 },
+// ORDER MINIMUMS CONFIG
+// ============================================================
+// Tier 1 - Vijayawada: Minimum order ₹499 (no item count restriction)
+// Tier 2 - Andhra Pradesh (outside Vijayawada): Minimum order ₹899 (no item count restriction)
+// Tier 3 - Outside Andhra Pradesh (Other States / Rest of India): Minimum order ₹1,299 (no item count restriction)
+
+const AP_CITIES = new Set([
+  "vijayawada", "bezawada", "tadepalli", "kanuru", "penamaluru", "poranki",
+  "mangalagiri", "guntur", "visakhapatnam", "vizag", "tirupati", "kakinada",
+  "rajahmundry", "nellore", "kurnool", "eluru", "ongole", "anantapur",
+  "kadapa", "chittoor", "machilipatnam", "tenali", "vizianagaram", "srikakulam",
+  "bhimavaram", "proddatur", "nandyal", "hindupur", "madanapalle", "adoni",
+  "amaravati", "chirala", "dharmavaram", "gudivada", "narasaraopet"
+]);
+
+const isAndhraPradesh = (state, city) => {
+  const s = String(state || "").toLowerCase().trim();
+  const c = String(city || "").toLowerCase().trim();
+  if (/andhra|ap\b|^ap$|a\.p\./i.test(s)) return true;
+  return AP_CITIES.has(c);
 };
 
-const getCityRules = (city) => {
-  const key = String(city || "").toLowerCase().trim();
-  if (!key) return CITY_RULES.default;
-  return CITY_RULES[key] || CITY_RULES.default;
+const isVijayawada = (city) => {
+  const c = String(city || "").toLowerCase().trim();
+  return c === "vijayawada" || c === "bezawada";
 };
+
+const getOrderMinimumRules = (city, state = "") => {
+  if (isVijayawada(city)) {
+    return {
+      region: "Vijayawada",
+      minAmount: 499,
+    };
+  }
+  if (isAndhraPradesh(state, city)) {
+    return {
+      region: "Andhra Pradesh",
+      minAmount: 899,
+    };
+  }
+  return {
+    region: "Outside Andhra Pradesh",
+    minAmount: 1299,
+  };
+};
+
+const getCityRules = (city, state = "") => getOrderMinimumRules(city, state);
 
 const getDeliveryLabel = (order) => {
   if (!order || !order.estimated_delivery_at) return null;
@@ -416,10 +448,10 @@ router.post("/place-whatsapp", requireAuth, async (req, res) => {
       finalAddressId = addr.id;
       addressSnapshot = `${addr.full_name}, ${addr.address_line}, ${addr.city}, ${addr.state} - ${addr.pincode}`;
       deliveryCity = String(addr.city || "").trim();
-      const rules = getCityRules(addr.city);
-      if (subtotalAmount < rules.minAmount || totalItems < rules.minItems) {
+      const rules = getCityRules(addr.city, addr.state);
+      if (subtotalAmount < rules.minAmount) {
         await client.query("ROLLBACK");
-        return res.json({ ok: false, error: `Minimum order for ${addr.city} is Rs ${rules.minAmount} and ${rules.minItems} item(s).` });
+        return res.json({ ok: false, error: `Minimum order for ${rules.region} is Rs ${rules.minAmount}. Current order total is Rs ${Math.round(subtotalAmount)}.` });
       }
     } else if (newAddressPayload && newAddressPayload.city) {
       const { full_name, phone, address_line, city, state, pincode } = newAddressPayload;
@@ -438,10 +470,10 @@ router.post("/place-whatsapp", requireAuth, async (req, res) => {
       finalAddressId = addr.id;
       addressSnapshot = `${addr.full_name}, ${addr.address_line}, ${addr.city}, ${addr.state} - ${addr.pincode}`;
       deliveryCity = String(addr.city || city || "").trim();
-      const rules = getCityRules(city);
-      if (subtotalAmount < rules.minAmount || totalItems < rules.minItems) {
+      const rules = getCityRules(city, state);
+      if (subtotalAmount < rules.minAmount) {
         await client.query("ROLLBACK");
-        return res.json({ ok: false, error: `Minimum order for ${city} is Rs ${rules.minAmount} and ${rules.minItems} item(s).` });
+        return res.json({ ok: false, error: `Minimum order for ${rules.region} is Rs ${rules.minAmount}. Current order total is Rs ${Math.round(subtotalAmount)}.` });
       }
     } else {
       await client.query("ROLLBACK"); return res.json({ ok: false, error: "Please select or add a delivery address" });
@@ -716,13 +748,13 @@ router.post("/place", requireAuth, async (req, res, next) => {
       addressSnapshot = `${addr.full_name}, ${addr.address_line}, ${addr.city}, ${addr.state} - ${addr.pincode}`;
       deliveryCity = String(addr.city || "").trim();
 
-      // City minimum check
-      const rules = getCityRules(addr.city);
-      if (subtotalAmount < rules.minAmount || totalItems < rules.minItems) {
+      // Order minimum check
+      const rules = getCityRules(addr.city, addr.state);
+      if (subtotalAmount < rules.minAmount) {
         await client.query("ROLLBACK");
         return res.redirect(
           `/orders/checkout?error=${encodeURIComponent(
-            `Minimum order for ${addr.city} is Rs ${rules.minAmount} and ${rules.minItems} item(s).`
+            `Minimum order for ${rules.region} is Rs ${rules.minAmount}. Current order total is Rs ${Math.round(subtotalAmount)}.`
           )}`
         );
       }
@@ -750,12 +782,12 @@ router.post("/place", requireAuth, async (req, res, next) => {
       addressSnapshot = `${addr.full_name}, ${addr.address_line}, ${addr.city}, ${addr.state} - ${addr.pincode}`;
       deliveryCity = String(addr.city || city || "").trim();
 
-      const rules = getCityRules(city);
-      if (subtotalAmount < rules.minAmount || totalItems < rules.minItems) {
+      const rules = getCityRules(city, state);
+      if (subtotalAmount < rules.minAmount) {
         await client.query("ROLLBACK");
         return res.redirect(
           `/orders/checkout?error=${encodeURIComponent(
-            `Minimum order for ${city} is Rs ${rules.minAmount} and ${rules.minItems} item(s).`
+            `Minimum order for ${rules.region} is Rs ${rules.minAmount}. Current order total is Rs ${Math.round(subtotalAmount)}.`
           )}`
         );
       }

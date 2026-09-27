@@ -45,79 +45,113 @@
                       </div>
                     </div>
                     <div class="card-body">
-                      <% var savedAddresses=(typeof addresses !=='undefined' && Array.isArray(addresses)) ? addresses :
-                        []; %>
+                      <!-- Dynamic Delivery Minimum Banner based on selected address -->
+                      <div id="dynamicMinOrderCard" class="dynamic-min-order-card" style="margin-bottom: 16px;"></div>
 
-                        <% if (savedAddresses.length> 0) { %>
-                          <div class="address-selector">
-                            <% savedAddresses.forEach((addr, i)=> { %>
-                              <label class="address-option">
-                                <input type="radio" name="address_id" value="<%= addr.id %>" <%=i===0 ? 'checked' : ''
-                                  %> onchange="toggleNewAddress(false)">
-                                <div class="address-option-body">
-                                  <% if (addr.is_default) { %><span class="badge badge-success badge-sm">Default</span>
-                                    <% } %>
-                                      <strong>
-                                        <%= addr.full_name %>
-                                      </strong>
-                                      <% if (addr.phone) { %><span class="text-muted"> - <%= addr.phone %></span>
-                                        <% } %>
-                                          <p class="text-sm">
-                                            <%= addr.address_line %>, <%= addr.city %>, <%= addr.state %> - <%=
-                                                    addr.pincode %>
-                                          </p>
+                      <% 
+                        var savedAddresses = (typeof addresses !== 'undefined' && Array.isArray(addresses)) ? addresses : [];
+                        const AP_CITIES_CHECKOUT = [
+                          "vijayawada", "bezawada", "tadepalli", "kanuru", "penamaluru", "poranki",
+                          "mangalagiri", "guntur", "visakhapatnam", "vizag", "tirupati", "kakinada",
+                          "rajahmundry", "nellore", "kurnool", "eluru", "ongole", "anantapur",
+                          "kadapa", "chittoor", "machilipatnam", "tenali", "vizianagaram", "srikakulam",
+                          "bhimavaram", "proddatur", "nandyal", "hindupur", "madanapalle", "adoni",
+                          "amaravati", "chirala", "dharmavaram", "gudivada", "narasaraopet"
+                        ];
+                      %>
+
+                      <% if (savedAddresses.length > 0) { %>
+                        <div class="address-selector">
+                          <% savedAddresses.forEach((addr, i) => { 
+                            const cClean = String(addr.city || '').toLowerCase().trim();
+                            const sClean = String(addr.state || '').toLowerCase().trim();
+                            const isVja = cClean === 'vijayawada' || cClean === 'bezawada';
+                            const isAp = /andhra|ap\b|^ap$|a\.p\./i.test(sClean) || AP_CITIES_CHECKOUT.includes(cClean);
+                            const minAmt = isVja ? 499 : (isAp ? 899 : 1299);
+                            const regionName = isVja ? 'Vijayawada' : (isAp ? 'Andhra Pradesh' : 'Outside AP');
+                          %>
+                            <label class="address-option">
+                              <input type="radio" name="address_id" value="<%= addr.id %>" 
+                                data-city="<%= addr.city %>" 
+                                data-state="<%= addr.state %>" 
+                                data-min="<%= minAmt %>" 
+                                data-region="<%= regionName %>"
+                                <%= i === 0 ? 'checked' : '' %> 
+                                onchange="onAddressSelected(this)">
+                              <div class="address-option-body">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                                  <div>
+                                    <% if (addr.is_default) { %><span class="badge badge-success badge-sm">Default</span><% } %>
+                                    <strong><%= addr.full_name %></strong>
+                                    <% if (addr.phone) { %><span class="text-muted"> - <%= addr.phone %></span><% } %>
+                                  </div>
+                                  <span class="addr-min-badge" style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 99px; background: rgba(28, 74, 48, 0.08); color: var(--green, #1C4A30); white-space: nowrap;">
+                                    Min &#8377;<%= minAmt %>
+                                  </span>
                                 </div>
-                              </label>
-                              <% }) %>
-                          </div>
-                          <% } else { %>
-                            <input type="hidden" name="address_id" value="new">
-                            <p class="text-muted mb-16">No saved addresses. Please enter a delivery address below.</p>
-                            <% } %>
-
-                              <div id="newAddressForm" class="<%= savedAddresses.length === 0 ? 'show' : 'hide' %>" style="margin-top:16px;">
-                                <% if (savedAddresses.length> 0) { %>
-                                  <hr style="margin-bottom:16px;">
-                                  <% } %>
-                                    <h3 class="new-address-title">New Delivery Address</h3>
-
-                                    <div class="form-row-2">
-                                      <div class="form-group">
-                                        <label>Full Name *</label>
-                                        <input type="text" name="new_address[full_name]"
-                                          class="form-control new-address-field" placeholder="Recipient's name">
-                                      </div>
-                                      <div class="form-group">
-                                        <label>Mobile *</label>
-                                        <input type="tel" name="new_address[phone]"
-                                          class="form-control new-address-field" placeholder="+91 9999999999">
-                                      </div>
-                                    </div>
-
-                                    <div class="form-group">
-                                      <label>Address *</label>
-                                      <textarea name="new_address[address_line]" class="form-control new-address-field"
-                                        rows="2" placeholder="House/Flat no., Street, Area"></textarea>
-                                    </div>
-
-                                    <div class="form-row-3">
-                                      <div class="form-group">
-                                        <label>City *</label>
-                                        <input type="text" name="new_address[city]"
-                                          class="form-control new-address-field" placeholder="Vijayawada">
-                                      </div>
-                                      <div class="form-group">
-                                        <label>State *</label>
-                                        <input type="text" name="new_address[state]"
-                                          class="form-control new-address-field" placeholder="Andhra Pradesh">
-                                      </div>
-                                      <div class="form-group">
-                                        <label>Pin-code *</label>
-                                        <input type="text" name="new_address[pincode]"
-                                          class="form-control new-address-field" placeholder="520001">
-                                      </div>
-                                    </div>
+                                <p class="text-sm" style="margin-top: 4px;">
+                                  <%= addr.address_line %>, <%= addr.city %>, <%= addr.state %> - <%= addr.pincode %>
+                                </p>
                               </div>
+                            </label>
+                          <% }) %>
+
+                          <label class="address-option">
+                            <input type="radio" name="address_id" value="new" onchange="onAddressSelected(this)">
+                            <div class="address-option-body">
+                              <strong>➕ Enter a New Address</strong>
+                              <p class="text-sm text-muted" style="margin-top: 2px;">Deliver to a different address</p>
+                            </div>
+                          </label>
+                        </div>
+                      <% } else { %>
+                        <input type="hidden" name="address_id" value="new">
+                        <p class="text-muted mb-16">No saved addresses. Please enter a delivery address below.</p>
+                      <% } %>
+
+                      <div id="newAddressForm" class="<%= savedAddresses.length === 0 ? 'show' : 'hide' %>" style="margin-top:16px;">
+                        <% if (savedAddresses.length > 0) { %>
+                          <hr style="margin-bottom:16px;">
+                        <% } %>
+                        <h3 class="new-address-title">New Delivery Address</h3>
+
+                        <div class="form-row-2">
+                          <div class="form-group">
+                            <label>Full Name *</label>
+                            <input type="text" name="new_address[full_name]"
+                              class="form-control new-address-field" placeholder="Recipient's name">
+                          </div>
+                          <div class="form-group">
+                            <label>Mobile *</label>
+                            <input type="tel" name="new_address[phone]"
+                              class="form-control new-address-field" placeholder="+91 9999999999">
+                          </div>
+                        </div>
+
+                        <div class="form-group">
+                          <label>Address *</label>
+                          <textarea name="new_address[address_line]" class="form-control new-address-field"
+                            rows="2" placeholder="House/Flat no., Street, Area"></textarea>
+                        </div>
+
+                        <div class="form-row-3">
+                          <div class="form-group">
+                            <label>City *</label>
+                            <input type="text" name="new_address[city]" id="newAddressCity"
+                              class="form-control new-address-field" placeholder="Vijayawada" oninput="updateDynamicMinimumUi()">
+                          </div>
+                          <div class="form-group">
+                            <label>State *</label>
+                            <input type="text" name="new_address[state]" id="newAddressState"
+                              class="form-control new-address-field" placeholder="Andhra Pradesh" oninput="updateDynamicMinimumUi()">
+                          </div>
+                          <div class="form-group">
+                            <label>Pin-code *</label>
+                            <input type="text" name="new_address[pincode]"
+                              class="form-control new-address-field" placeholder="520001">
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -273,6 +307,9 @@
                           <span class="total-payable-amount">&#8377;<%= Number(total).toLocaleString('en-IN') %></span>
                         </div>
                       </div>
+
+                      <!-- Minimum Order Dynamic Sidebar Alert -->
+                      <div id="summaryMinOrderAlert" class="summary-min-order-alert" style="display:none; margin-bottom: 14px;"></div>
 
                       <!-- Actions -->
                       <div class="checkout-actions-luxury">
@@ -493,6 +530,158 @@
       }
     });
 
+    const ORDER_SUBTOTAL = <%= Number(subtotal || total || 0) %>;
+
+    const AP_CITIES_CLIENT = new Set([
+      "vijayawada", "bezawada", "tadepalli", "kanuru", "penamaluru", "poranki",
+      "mangalagiri", "guntur", "visakhapatnam", "vizag", "tirupati", "kakinada",
+      "rajahmundry", "nellore", "kurnool", "eluru", "ongole", "anantapur",
+      "kadapa", "chittoor", "machilipatnam", "tenali", "vizianagaram", "srikakulam",
+      "bhimavaram", "proddatur", "nandyal", "hindupur", "madanapalle", "adoni",
+      "amaravati", "chirala", "dharmavaram", "gudivada", "narasaraopet"
+    ]);
+
+    function getOrderMinimumClient(city, state) {
+      const c = String(city || "").toLowerCase().trim();
+      const s = String(state || "").toLowerCase().trim();
+
+      if (c === "vijayawada" || c === "bezawada") {
+        return {
+          region: "Vijayawada",
+          name: "Vijayawada",
+          minAmount: 499,
+        };
+      }
+      if (/andhra|ap\b|^ap$|a\.p\./i.test(s) || AP_CITIES_CLIENT.has(c)) {
+        return {
+          region: "Andhra Pradesh",
+          name: city ? (city.charAt(0).toUpperCase() + city.slice(1)) : "Andhra Pradesh",
+          minAmount: 899,
+        };
+      }
+      return {
+        region: "Outside Andhra Pradesh",
+        name: city ? (city.charAt(0).toUpperCase() + city.slice(1)) : "Other States",
+        minAmount: 1299,
+      };
+    }
+
+    function getSelectedAddressCityState() {
+      const selected = document.querySelector("input[name='address_id']:checked");
+      if (!selected) return { city: "Vijayawada", state: "Andhra Pradesh" };
+
+      if (selected.value === "new") {
+        const c = document.getElementById("newAddressCity")?.value?.trim() || "";
+        const s = document.getElementById("newAddressState")?.value?.trim() || "";
+        return { city: c, state: s };
+      }
+
+      return {
+        city: selected.dataset.city || "",
+        state: selected.dataset.state || "",
+      };
+    }
+
+    function updateDynamicMinimumUi() {
+      const { city, state } = getSelectedAddressCityState();
+      const activeCity = city || "Vijayawada";
+      const activeState = state || "Andhra Pradesh";
+
+      const rules = getOrderMinimumClient(activeCity, activeState);
+      const minAmount = rules.minAmount;
+      const isMet = ORDER_SUBTOTAL >= minAmount;
+      const shortfall = Math.max(0, minAmount - ORDER_SUBTOTAL);
+
+      // 1. Update card in Delivery Address Section
+      const minCard = document.getElementById("dynamicMinOrderCard");
+      if (minCard) {
+        if (isMet) {
+          minCard.className = "dynamic-min-order-card is-met";
+          minCard.innerHTML = `
+            <div class="dyn-min-flex">
+              <div class="dyn-min-icon">✅</div>
+              <div class="dyn-min-body">
+                <div class="dyn-min-title-row">
+                  <strong>Delivering to: ${rules.name} (${rules.region})</strong>
+                  <span class="dyn-min-chip chip-met">Min ₹${minAmount} Met</span>
+                </div>
+                <div class="dyn-min-text">
+                  Your cart subtotal (<strong>₹${Math.round(ORDER_SUBTOTAL).toLocaleString('en-IN')}</strong>) meets the minimum order requirement for this address. Free delivery included!
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          minCard.className = "dynamic-min-order-card is-not-met";
+          minCard.innerHTML = `
+            <div class="dyn-min-flex">
+              <div class="dyn-min-icon">⚠️</div>
+              <div class="dyn-min-body">
+                <div class="dyn-min-title-row">
+                  <strong>Delivering to: ${rules.name} (${rules.region})</strong>
+                  <span class="dyn-min-chip chip-shortfall">Add ₹${Math.round(shortfall).toLocaleString('en-IN')} More</span>
+                </div>
+                <div class="dyn-min-text">
+                  Minimum order amount for <strong>${rules.region}</strong> is <strong>₹${minAmount}</strong>. Your current subtotal is <strong>₹${Math.round(ORDER_SUBTOTAL).toLocaleString('en-IN')}</strong>.
+                </div>
+                <div class="dyn-min-actions">
+                  <a href="/products" class="btn-dyn-add-items">🛒 Add ₹${Math.round(shortfall).toLocaleString('en-IN')} More Items</a>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      // 2. Update Sidebar Summary Alert
+      const summaryAlert = document.getElementById("summaryMinOrderAlert");
+      if (summaryAlert) {
+        if (isMet) {
+          summaryAlert.style.display = "none";
+        } else {
+          summaryAlert.style.display = "block";
+          summaryAlert.innerHTML = `
+            <div class="summary-min-box">
+              <div class="summary-min-head">
+                <span>⚠️</span> <strong>Min Order: ₹${minAmount}</strong>
+              </div>
+              <p class="summary-min-text">
+                For <strong>${rules.region}</strong>, minimum order is ₹${minAmount}. Add <strong>₹${Math.round(shortfall).toLocaleString('en-IN')}</strong> more to place order.
+              </p>
+              <a href="/products" class="summary-min-add-link">Browse Products &rarr;</a>
+            </div>
+          `;
+        }
+      }
+
+      // 3. Update Order Action Buttons
+      const placeBtn = document.getElementById("placeOrderBtn");
+      const waBtn = document.getElementById("whatsappPayBtn");
+      if (placeBtn) {
+        if (!isMet) {
+          placeBtn.classList.add("btn-disabled-min");
+          placeBtn.title = `Minimum order amount for ${rules.region} is ₹${minAmount}`;
+        } else {
+          placeBtn.classList.remove("btn-disabled-min");
+          placeBtn.title = "";
+        }
+      }
+      if (waBtn) {
+        if (!isMet) {
+          waBtn.classList.add("btn-disabled-min");
+          waBtn.title = `Minimum order amount for ${rules.region} is ₹${minAmount}`;
+        } else {
+          waBtn.classList.remove("btn-disabled-min");
+          waBtn.title = "";
+        }
+      }
+    }
+
+    function onAddressSelected(radio) {
+      toggleNewAddress(radio && radio.value === "new");
+      updateDynamicMinimumUi();
+    }
+
     function setAddressRequired(isRequired) {
       document.querySelectorAll(".new-address-field").forEach((el) => {
         el.required = !!isRequired;
@@ -505,6 +694,7 @@
         form.style.display = show ? "block" : "none";
       }
       setAddressRequired(show);
+      updateDynamicMinimumUi();
     }
 
     function selectedAddressText() {
@@ -589,6 +779,23 @@
           const pi = document.querySelector("[name='new_address[pincode]']")?.value?.trim();
           if (!fn || !ph || !ln || !ct || !st || !pi) { alert("Please fill all required address fields."); return; }
           if (!/^[0-9+\-() ]{8,20}$/.test(ph)) { alert("Please enter a valid mobile number."); return; }
+        }
+
+        // Validate minimum order requirement for selected address
+        const { city, state } = getSelectedAddressCityState();
+        const activeCity = city || "Vijayawada";
+        const activeState = state || "Andhra Pradesh";
+        const minRules = getOrderMinimumClient(activeCity, activeState);
+        if (ORDER_SUBTOTAL < minRules.minAmount) {
+          const shortfall = Math.ceil(minRules.minAmount - ORDER_SUBTOTAL);
+          const card = document.getElementById("dynamicMinOrderCard");
+          if (card) {
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.classList.add("pulse-attention");
+            setTimeout(() => card.classList.remove("pulse-attention"), 1500);
+          }
+          alert(`Minimum order amount for ${minRules.region} is ₹${minRules.minAmount}.\nYour cart subtotal is ₹${Math.round(ORDER_SUBTOTAL).toLocaleString('en-IN')}.\nPlease add ₹${shortfall} more items to your cart to proceed.`);
+          return;
         }
 
         // Show loading
@@ -762,6 +969,24 @@
         }
       }
 
+      // Check dynamic minimum order requirement
+      const { city, state } = getSelectedAddressCityState();
+      const activeCity = city || "Vijayawada";
+      const activeState = state || "Andhra Pradesh";
+      const minRules = getOrderMinimumClient(activeCity, activeState);
+      if (ORDER_SUBTOTAL < minRules.minAmount) {
+        e.preventDefault();
+        const shortfall = Math.ceil(minRules.minAmount - ORDER_SUBTOTAL);
+        const card = document.getElementById("dynamicMinOrderCard");
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          card.classList.add("pulse-attention");
+          setTimeout(() => card.classList.remove("pulse-attention"), 1500);
+        }
+        alert(`Minimum order amount for ${minRules.region} is ₹${minRules.minAmount}.\nYour cart subtotal is ₹${Math.round(ORDER_SUBTOTAL).toLocaleString('en-IN')}.\nPlease add ₹${shortfall} more to place this order.`);
+        return;
+      }
+
       if (selectedPayment === "whatsapp") {
         e.preventDefault();
         openWhatsApp();
@@ -802,13 +1027,189 @@
         openWhatsApp();
       });
 
+      // City & State input listeners for instant dynamic feedback
+      const cityInput = document.getElementById("newAddressCity");
+      const stateInput = document.getElementById("newAddressState");
+      if (cityInput) {
+        cityInput.addEventListener("input", updateDynamicMinimumUi);
+        cityInput.addEventListener("change", updateDynamicMinimumUi);
+      }
+      if (stateInput) {
+        stateInput.addEventListener("input", updateDynamicMinimumUi);
+        stateInput.addEventListener("change", updateDynamicMinimumUi);
+      }
+
       updatePaymentUi();
+      updateDynamicMinimumUi();
     });
   </script>
 
   <style>
     .checkout-modern {
       max-width: 1240px;
+    }
+
+    /* Dynamic Minimum Order Card & Alerts */
+    .dynamic-min-order-card {
+      border-radius: 14px;
+      padding: 13px 16px;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .dynamic-min-order-card.is-met {
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border: 1.5px solid #86efac;
+      box-shadow: 0 2px 10px rgba(34, 197, 94, 0.08);
+    }
+
+    .dynamic-min-order-card.is-not-met {
+      background: linear-gradient(135deg, #fffaf5 0%, #fff1f2 100%);
+      border: 1.5px solid #fca5a5;
+      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.1);
+    }
+
+    .dyn-min-flex {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .dyn-min-icon {
+      font-size: 20px;
+      line-height: 1.2;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .dyn-min-body {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .dyn-min-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .dyn-min-title-row strong {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .dyn-min-chip {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 99px;
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+    }
+
+    .dyn-min-chip.chip-met {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+
+    .dyn-min-chip.chip-shortfall {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+
+    .dyn-min-text {
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: #475569;
+    }
+
+    .dyn-min-actions {
+      margin-top: 8px;
+    }
+
+    .btn-dyn-add-items {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff !important;
+      background: #dc2626;
+      padding: 6px 14px;
+      border-radius: 99px;
+      text-decoration: none;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    .btn-dyn-add-items:hover {
+      background: #b91c1c;
+      transform: translateY(-1px);
+    }
+
+    /* Summary Min Order Alert */
+    .summary-min-box {
+      border: 1.5px dashed #fca5a5;
+      background: #fff5f5;
+      border-radius: 12px;
+      padding: 12px 14px;
+      animation: fadeInAlert 0.3s ease;
+    }
+
+    .summary-min-head {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #b91c1c;
+      margin-bottom: 4px;
+    }
+
+    .summary-min-text {
+      font-size: 12px;
+      line-height: 1.4;
+      color: #4b5563;
+      margin-bottom: 6px;
+    }
+
+    .summary-min-add-link {
+      font-size: 12px;
+      font-weight: 700;
+      color: #dc2626;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .summary-min-add-link:hover {
+      text-decoration: underline;
+    }
+
+    .btn-disabled-min {
+      opacity: 0.85;
+      position: relative;
+    }
+
+    @keyframes pulseAttention {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+
+    .pulse-attention {
+      animation: pulseAttention 0.3s ease 3;
+    }
+
+    @keyframes fadeInAlert {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .show {
@@ -1588,3 +1989,22 @@
       }
     }
   </style>
+
+<script>
+  // Strict multi-layer suppression: ensure floating cart is never shown on checkout page
+  (function() {
+    function purgeFloatingCart() {
+      const fc = document.getElementById('swiggyFloatingCart');
+      if (fc) {
+        fc.style.setProperty('display', 'none', 'important');
+        try { fc.remove(); } catch(e){}
+      }
+    }
+    purgeFloatingCart();
+    document.addEventListener('DOMContentLoaded', purgeFloatingCart);
+    window.addEventListener('load', purgeFloatingCart);
+  })();
+</script>
+
+<%- include('./partials/footer') %>
+
