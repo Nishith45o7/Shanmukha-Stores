@@ -65,6 +65,11 @@ const attachUser = async (req, res, next) => {
     } catch (err) {
       console.error("Middleware error:", err);
     }
+  } else {
+    // Guest cart: count from session
+    if (req.session && Array.isArray(req.session.guestCart)) {
+      res.locals.cartCount = req.session.guestCart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+    }
   }
 
   next();

@@ -14,13 +14,16 @@
       <div class="auth-card">
         <h2>Login</h2>
         <% if (typeof error !=='undefined' && error) { %>
-          <div class="auth-alert error">⚠️ <%= error %>
+          <div class="auth-alert error">⚠️ <%= error %></div>
+        <% } %>
+        <% if (typeof success !=='undefined' && success) { %>
+          <div class="auth-alert success">✅ <%= success %></div>
+        <% } %>
+        <% if (typeof info !=='undefined' && info) { %>
+          <div class="auth-alert info" style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; padding:12px 14px; margin-bottom:16px; font-size:13.5px; font-weight:500; display:flex; align-items:center; gap:8px;">
+            <span>ℹ️</span> <%= info %>
           </div>
-          <% } %>
-            <% if (typeof success !=='undefined' && success) { %>
-              <div class="auth-alert success">✅ <%= success %>
-              </div>
-              <% } %>
+        <% } %>
                 <div style="display:flex; gap:16px; margin-bottom:24px; border-bottom:1px solid #eee;">
                   <button type="button" class="tab-btn" id="tabPassword" onclick="switchLoginTab('password')" style="flex:1; padding:10px; border:none; background:none; font-weight:bold; cursor:pointer; border-bottom:2px solid #2c7a4b; color:#2c7a4b;">Password</button>
                   <button type="button" class="tab-btn" id="tabOTP" onclick="switchLoginTab('otp')" style="flex:1; padding:10px; border:none; background:none; font-weight:bold; cursor:pointer; color:var(--gray-500);">OTP</button>

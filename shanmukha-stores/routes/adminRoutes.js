@@ -206,15 +206,159 @@ const isStaff = (req, res, next) => {
 };
 
 /* ===============================
+   ANALYTICS & DASHBOARD HELPERS
+=============================== */
+const getTimeSeriesRevenue = async (periodDays = 7) => {
+    const days = Math.max(1, Math.min(365, parseInt(periodDays) || 7));
+    const result = await pool.query(`
+        WITH date_series AS (
+            SELECT generate_series(
+                DATE(NOW() - ((($1::int - 1) || ' days')::interval)),
+                DATE(NOW()),
+                '1 day'::interval
+            )::date AS day_date
+        )
+        SELECT 
+            TO_CHAR(ds.day_date, 'DD Mon') AS day,
+            TO_CHAR(ds.day_date, 'YYYY-MM-DD') AS full_date,
+            COALESCE(SUM(o.total_amount), 0)::numeric AS revenue,
+            COUNT(o.id)::int AS order_count
+        FROM date_series ds
+        LEFT JOIN orders o 
+            ON DATE(o.created_at) = ds.day_date 
+           AND o.status != 'Cancelled'
+        GROUP BY ds.day_date
+        ORDER BY ds.day_date ASC
+    `, [days]);
+    return result.rows;
+};
+
+const getTimeSeriesUsers = async (periodDays = 30) => {
+    const days = Math.max(1, Math.min(365, parseInt(periodDays) || 30));
+    const result = await pool.query(`
+        WITH date_series AS (
+            SELECT generate_series(
+                DATE(NOW() - ((($1::int - 1) || ' days')::interval)),
+                DATE(NOW()),
+                '1 day'::interval
+            )::date AS day_date
+        )
+        SELECT 
+            TO_CHAR(ds.day_date, 'DD Mon') AS day,
+            COUNT(u.id)::int AS users
+        FROM date_series ds
+        LEFT JOIN users u 
+            ON DATE(u.created_at) = ds.day_date
+        GROUP BY ds.day_date
+        ORDER BY ds.day_date ASC
+    `, [days]);
+    return result.rows;
+};
+
+const getCategoryBreakdown = async (periodDays = 30) => {
+    const days = Math.max(1, Math.min(365, parseInt(periodDays) || 30));
+    const result = await pool.query(`
+        SELECT 
+            COALESCE(c.name, 'Uncategorized') AS category, 
+            COUNT(oi.id)::int AS count,
+            COALESCE(SUM(oi.price * oi.quantity), 0)::numeric AS revenue
+        FROM order_items oi 
+        JOIN products p ON p.id = oi.product_id 
+        LEFT JOIN categories c ON c.id = p.category_id 
+        JOIN orders o ON o.id = oi.order_id 
+        WHERE o.status != 'Cancelled' AND o.created_at >= NOW() - ($1::int || ' days')::interval
+        GROUP BY c.name 
+        ORDER BY count DESC
+        LIMIT 7
+    `, [days]);
+
+    if (result.rows.length > 0) return result.rows;
+
+    const catFallback = await pool.query(`
+        SELECT 
+            c.name AS category, 
+            COUNT(p.id)::int AS count,
+            0::numeric AS revenue
+        FROM categories c
+        LEFT JOIN products p ON p.category_id = c.id AND COALESCE(p.is_enabled, true) = true
+        GROUP BY c.name
+        ORDER BY count DESC
+        LIMIT 7
+    `);
+    return catFallback.rows;
+};
+
+const getSalesByCity = async (periodDays = 30) => {
+    const days = Math.max(1, Math.min(365, parseInt(periodDays) || 30));
+    const result = await pool.query(`
+        SELECT 
+            TRIM(city) AS city, 
+            COUNT(*)::int AS count,
+            COALESCE(SUM(total_amount), 0)::numeric AS revenue
+        FROM orders 
+        WHERE status != 'Cancelled' 
+          AND city IS NOT NULL 
+          AND TRIM(city) != ''
+          AND created_at >= NOW() - ($1::int || ' days')::interval
+        GROUP BY TRIM(city) 
+        ORDER BY count DESC 
+        LIMIT 6
+    `, [days]);
+    return result.rows;
+};
+
+const getMonthOverMonthGrowth = async () => {
+    const [currentMonth, priorMonth] = await Promise.all([
+        pool.query(`
+            SELECT 
+                COALESCE(SUM(total_amount), 0)::numeric AS revenue,
+                COUNT(*)::int AS orders,
+                COALESCE(AVG(total_amount), 0)::numeric AS avg_value
+            FROM orders 
+            WHERE status != 'Cancelled' 
+              AND created_at >= DATE_TRUNC('month', NOW())
+        `),
+        pool.query(`
+            SELECT 
+                COALESCE(SUM(total_amount), 0)::numeric AS revenue,
+                COUNT(*)::int AS orders,
+                COALESCE(AVG(total_amount), 0)::numeric AS avg_value
+            FROM orders 
+            WHERE status != 'Cancelled' 
+              AND created_at >= DATE_TRUNC('month', NOW() - INTERVAL '1 month')
+              AND created_at < DATE_TRUNC('month', NOW())
+        `)
+    ]);
+
+    const cur = currentMonth.rows[0];
+    const prev = priorMonth.rows[0];
+
+    const calc = (c, p) => {
+        const curVal = Number(c || 0);
+        const prevVal = Number(p || 0);
+        if (prevVal === 0) return curVal > 0 ? 100 : 0;
+        return Math.round(((curVal - prevVal) / prevVal) * 100);
+    };
+
+    return {
+        revenue: calc(cur.revenue, prev.revenue),
+        orders: calc(cur.orders, prev.orders),
+        avgOrderValue: calc(cur.avg_value, prev.avg_value)
+    };
+};
+
+/* ===============================
    DASHBOARD
 =============================== */
 router.get('/', isStaff, (req, res) => res.redirect('/admin/dashboard'));
 
 router.get('/dashboard', isStaff, async (req, res) => {
     try {
+        const period = parseInt(req.query.period) || 7;
+
         const [
             users, products, orders, revenue, pending, categories,
-            revenueByDayResult, revenueByCategoryResult, salesByCityResult, avgOrderValueResult
+            revenueByDay, revenueByCategory, salesByCity, avgOrderValueResult, growth
         ] = await Promise.all([
             pool.query("SELECT COUNT(*) FROM users"),
             pool.query("SELECT COUNT(*) FROM products"),
@@ -222,36 +366,11 @@ router.get('/dashboard', isStaff, async (req, res) => {
             pool.query("SELECT COALESCE(SUM(total_amount),0) AS total FROM orders WHERE status != 'Cancelled'"),
             pool.query("SELECT COUNT(*) FROM orders WHERE status='Pending'"),
             pool.query("SELECT COUNT(*) FROM categories"),
-            pool.query(`
-                SELECT TO_CHAR(created_at, 'DD.MM') AS day, COALESCE(SUM(total_amount), 0) AS revenue 
-                FROM orders 
-                WHERE status != 'Cancelled' AND created_at >= NOW() - INTERVAL '7 days' 
-                GROUP BY TO_CHAR(created_at, 'DD.MM'), DATE(created_at) 
-                ORDER BY DATE(created_at) ASC
-            `),
-            pool.query(`
-                SELECT COALESCE(c.name, 'Uncategorized') AS category, COUNT(oi.id) as count 
-                FROM order_items oi 
-                JOIN products p ON p.id = oi.product_id 
-                LEFT JOIN categories c ON c.id = p.category_id 
-                JOIN orders o ON o.id = oi.order_id 
-                WHERE o.status != 'Cancelled' AND o.created_at >= NOW() - INTERVAL '30 days' 
-                GROUP BY c.name 
-                ORDER BY count DESC
-            `),
-            pool.query(`
-                SELECT city, COUNT(*) as count 
-                FROM orders 
-                WHERE status != 'Cancelled' AND city IS NOT NULL AND city != '' 
-                GROUP BY city 
-                ORDER BY count DESC 
-                LIMIT 5
-            `),
-            pool.query(`
-                SELECT COALESCE(AVG(total_amount), 0) AS avg_value 
-                FROM orders 
-                WHERE status != 'Cancelled'
-            `)
+            getTimeSeriesRevenue(period),
+            getCategoryBreakdown(period),
+            getSalesByCity(period),
+            pool.query("SELECT COALESCE(AVG(total_amount), 0) AS avg_value FROM orders WHERE status != 'Cancelled'"),
+            getMonthOverMonthGrowth()
         ]);
 
         const recentOrders = await pool.query(
@@ -269,6 +388,7 @@ router.get('/dashboard', isStaff, async (req, res) => {
 
         res.render('admin/dashboard', {
             title: 'Dashboard', user: req.session.user,
+            period,
             stats: {
                 users: users.rows[0].count,
                 products: products.rows[0].count,
@@ -278,10 +398,11 @@ router.get('/dashboard', isStaff, async (req, res) => {
                 categories: categories.rows[0].count,
                 avgOrderValue: Math.round(Number(avgOrderValueResult.rows[0].avg_value))
             },
+            growth,
             chartsData: {
-                revenueByDay: revenueByDayResult.rows,
-                revenueByCategory: revenueByCategoryResult.rows,
-                salesByCity: salesByCityResult.rows
+                revenueByDay,
+                revenueByCategory,
+                salesByCity
             },
             recentOrders: recentOrders.rows,
             recentUsers: recentUsers.rows,
@@ -293,6 +414,21 @@ router.get('/dashboard', isStaff, async (req, res) => {
     }
 });
 
+router.get('/api/dashboard-charts', isStaff, async (req, res) => {
+    try {
+        const period = parseInt(req.query.period) || 7;
+        const [revenueByDay, revenueByCategory, salesByCity] = await Promise.all([
+            getTimeSeriesRevenue(period),
+            getCategoryBreakdown(period),
+            getSalesByCity(period)
+        ]);
+        res.json({ ok: true, period, revenueByDay, revenueByCategory, salesByCity });
+    } catch (err) {
+        console.error("Dashboard charts API error:", err);
+        res.status(500).json({ ok: false, error: err.message });
+    }
+});
+
 /* ===============================
    ANALYTICS
 =============================== */
@@ -301,99 +437,56 @@ router.get('/analytics', isAdmin, async (req, res) => {
         const period = parseInt(req.query.period) || 30;
 
         const [
-            revenueByDayResult,
+            revenueByDay,
             ordersByStatusResult,
-            newUsersChartResult,
-            revenueByCategoryResult,
+            newUsersChart,
+            revenueByCategory,
             topProductsResult,
             avgOrderValueResult
         ] = await Promise.all([
-
-            // Revenue + order count per day for the period
+            getTimeSeriesRevenue(period),
             pool.query(`
-                SELECT
-                    TO_CHAR(created_at, 'DD Mon') AS day,
-                    COALESCE(SUM(total_amount), 0) AS revenue,
-                    COUNT(*) AS order_count
+                SELECT status, COUNT(*)::int AS count
                 FROM orders
-                WHERE status != 'Cancelled'
-                  AND created_at >= NOW() - INTERVAL '${period} days'
-                GROUP BY TO_CHAR(created_at, 'DD Mon'), DATE(created_at)
-                ORDER BY DATE(created_at) ASC
-            `),
-
-            // Orders grouped by status
-            pool.query(`
-                SELECT status, COUNT(*) AS count
-                FROM orders
-                WHERE created_at >= NOW() - INTERVAL '${period} days'
+                WHERE created_at >= NOW() - ($1::int || ' days')::interval
                 GROUP BY status
                 ORDER BY count DESC
-            `),
-
-            // New users per day
-            pool.query(`
-                SELECT
-                    TO_CHAR(created_at, 'DD Mon') AS day,
-                    COUNT(*) AS users
-                FROM users
-                WHERE created_at >= NOW() - INTERVAL '${period} days'
-                GROUP BY TO_CHAR(created_at, 'DD Mon'), DATE(created_at)
-                ORDER BY DATE(created_at) ASC
-            `),
-
-            // Revenue by category
-            pool.query(`
-                SELECT
-                    COALESCE(categories.name, 'Uncategorised') AS category,
-                    COALESCE(SUM(order_items.price * order_items.quantity), 0) AS revenue
-                FROM order_items
-                JOIN products        ON products.id   = order_items.product_id
-                LEFT JOIN categories ON categories.id = products.category_id
-                JOIN orders          ON orders.id     = order_items.order_id
-                WHERE orders.status != 'Cancelled'
-                  AND orders.created_at >= NOW() - INTERVAL '${period} days'
-                GROUP BY COALESCE(categories.name, 'Uncategorised')
-                ORDER BY revenue DESC
-                LIMIT 8
-            `),
-
-            // Top selling products
+            `, [period]),
+            getTimeSeriesUsers(period),
+            getCategoryBreakdown(period),
             pool.query(`
                 SELECT
                     products.id,
                     products.name,
                     products.price,
                     products.stock,
-                    SUM(order_items.quantity) AS total_sold,
-                    SUM(order_items.price * order_items.quantity) AS total_revenue
+                    SUM(order_items.quantity)::int AS total_sold,
+                    SUM(order_items.price * order_items.quantity)::numeric AS total_revenue
                 FROM order_items
                 JOIN products ON products.id = order_items.product_id
                 JOIN orders   ON orders.id   = order_items.order_id
                 WHERE orders.status != 'Cancelled'
-                  AND orders.created_at >= NOW() - INTERVAL '${period} days'
+                  AND orders.created_at >= NOW() - ($1::int || ' days')::interval
                 GROUP BY products.id, products.name, products.price, products.stock
                 ORDER BY total_sold DESC
                 LIMIT 10
-            `),
-
-            // Average order value
+            `, [period]),
             pool.query(`
                 SELECT COALESCE(AVG(total_amount), 0) AS avg_value
                 FROM orders
                 WHERE status != 'Cancelled'
-                  AND created_at >= NOW() - INTERVAL '${period} days'
-            `)
+                  AND created_at >= NOW() - ($1::int || ' days')::interval
+            `, [period])
         ]);
 
         res.render('admin/analytics', {
             title: 'Analytics',
             user: req.session.user,
             period,
-            revenueByDay: revenueByDayResult.rows,
+            revenueByDay,
             ordersByStatus: ordersByStatusResult.rows,
-            newUsersChart: newUsersChartResult.rows,
-            revenueByCategory: revenueByCategoryResult.rows,
+            newUsersChart,
+            revenueByCategory,
             topProducts: topProductsResult.rows,
             avgOrderValue: Math.round(Number(avgOrderValueResult.rows[0].avg_value))
         });
@@ -401,6 +494,68 @@ router.get('/analytics', isAdmin, async (req, res) => {
     } catch (err) {
         console.error('Analytics error:', err);
         res.status(500).send('Analytics error: ' + err.message);
+    }
+});
+
+router.get('/api/analytics-data', isAdmin, async (req, res) => {
+    try {
+        const period = parseInt(req.query.period) || 30;
+        const [
+            revenueByDay,
+            ordersByStatusResult,
+            newUsersChart,
+            revenueByCategory,
+            topProductsResult,
+            avgOrderValueResult
+        ] = await Promise.all([
+            getTimeSeriesRevenue(period),
+            pool.query(`
+                SELECT status, COUNT(*)::int AS count
+                FROM orders
+                WHERE created_at >= NOW() - ($1::int || ' days')::interval
+                GROUP BY status
+                ORDER BY count DESC
+            `, [period]),
+            getTimeSeriesUsers(period),
+            getCategoryBreakdown(period),
+            pool.query(`
+                SELECT
+                    products.id,
+                    products.name,
+                    products.price,
+                    products.stock,
+                    SUM(order_items.quantity)::int AS total_sold,
+                    SUM(order_items.price * order_items.quantity)::numeric AS total_revenue
+                FROM order_items
+                JOIN products ON products.id = order_items.product_id
+                JOIN orders   ON orders.id   = order_items.order_id
+                WHERE orders.status != 'Cancelled'
+                  AND orders.created_at >= NOW() - ($1::int || ' days')::interval
+                GROUP BY products.id, products.name, products.price, products.stock
+                ORDER BY total_sold DESC
+                LIMIT 10
+            `, [period]),
+            pool.query(`
+                SELECT COALESCE(AVG(total_amount), 0) AS avg_value
+                FROM orders
+                WHERE status != 'Cancelled'
+                  AND created_at >= NOW() - ($1::int || ' days')::interval
+            `, [period])
+        ]);
+
+        res.json({
+            ok: true,
+            period,
+            revenueByDay,
+            ordersByStatus: ordersByStatusResult.rows,
+            newUsersChart,
+            revenueByCategory,
+            topProducts: topProductsResult.rows,
+            avgOrderValue: Math.round(Number(avgOrderValueResult.rows[0].avg_value))
+        });
+    } catch (err) {
+        console.error("Analytics API error:", err);
+        res.status(500).json({ ok: false, error: err.message });
     }
 });
 

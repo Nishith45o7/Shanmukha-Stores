@@ -2,18 +2,9 @@ const express = require("express");
 const pool = require("../config/db");
 const { normalizeCouponCode, validateCouponForUser } = require("../utils/couponService");
 const { getProductWeightOptions, normalizeWeightLabel, parseWeightToKg } = require("../utils/weightUtils");
+const { getGuestCartItems } = require("../utils/cartService");
 
 const router = express.Router();
-
-const requireAuth = (req, res, next) => {
-  if (!req.session.user) {
-    if (wantsJson(req)) {
-      return res.status(401).json({ ok: false, error: "Please login to add items to cart", redirect: "/auth/login" });
-    }
-    return res.redirect("/auth/login");
-  }
-  next();
-};
 
 const wantsJson = (req) => {
   const accept = req.get("accept") || "";
@@ -21,95 +12,103 @@ const wantsJson = (req) => {
 };
 
 // ============================================================
-// GET USER CART
+// GET USER OR GUEST CART
 // ============================================================
 router.get("/", async (req, res, next) => {
   try {
+    let processedItems = [];
+    const userId = req.session.user ? req.session.user.id : null;
+
     if (!req.session.user) {
-      return res.render("cart", {
-        title: "My Cart",
-        cartItems: [],
-        originalSubtotal: 0,
-        subtotal: 0,
-        offerDiscount: 0,
-        couponDiscount: 0,
-        appliedCoupon: null,
-        couponError: null,
-        total: 0,
-        error: req.query.error || null,
-        success: req.query.success || null,
-      });
-    }
+      // Guest cart session handler
+      processedItems = await getGuestCartItems(req, pool);
 
-    const userId = req.session.user.id;
+      if (processedItems.length === 0) {
+        req.session.appliedCouponCode = null;
+        return res.render("cart", {
+          title: "My Cart",
+          cartItems: [],
+          originalSubtotal: 0,
+          subtotal: 0,
+          offerDiscount: 0,
+          couponDiscount: 0,
+          appliedCoupon: null,
+          couponError: null,
+          total: 0,
+          error: req.query.error || null,
+          success: req.query.success || null,
+        });
+      }
+    } else {
+      // Logged-in user database cart
+      const cartResult = await pool.query(
+        "SELECT * FROM carts WHERE user_id = $1",
+        [userId]
+      );
 
-    const cartResult = await pool.query(
-      "SELECT * FROM carts WHERE user_id = $1",
-      [userId]
-    );
-
-    if (cartResult.rows.length === 0) {
-      req.session.appliedCouponCode = null;
-      return res.render("cart", {
-        title: "My Cart",
-        cartItems: [],
-        total: 0,
-        originalSubtotal: 0,
-        subtotal: 0,
-        offerDiscount: 0,
-        couponDiscount: 0,
-        appliedCoupon: null,
-        couponError: null,
-        error: req.query.error || null,
-        success: req.query.success || null,
-      });
-    }
-
-    const cart = cartResult.rows[0];
-
-    const items = await pool.query(
-      `SELECT 
-          ci.id,
-          ci.quantity,
-          ci.selected_weight,
-          p.id AS product_id,
-          p.category_id,
-          p.name,
-          p.price AS original_price,
-          CASE
-            WHEN p.offer_active = true AND COALESCE(p.offer_percent, 0) > 0
-            THEN ROUND((p.price * (1 - COALESCE(p.offer_percent, 0) / 100.0))::numeric, 2)
-            ELSE p.price
-          END AS base_price,
-          p.image,
-          p.stock,
-          p.price_type,
-          p.offer_active,
-          p.offer_percent
-       FROM cart_items ci
-       JOIN products p ON p.id = ci.product_id
-       WHERE ci.cart_id = $1
-         AND COALESCE(p.is_enabled, true) = true
-       ORDER BY ci.id ASC`,
-      [cart.id]
-    );
-
-    const processedItems = items.rows.map(item => {
-      let multiplier = 1;
-      if (item.price_type === 'kg' && item.selected_weight) {
-        multiplier = parseWeightToKg(item.selected_weight) || 1;
+      if (cartResult.rows.length === 0) {
+        req.session.appliedCouponCode = null;
+        return res.render("cart", {
+          title: "My Cart",
+          cartItems: [],
+          total: 0,
+          originalSubtotal: 0,
+          subtotal: 0,
+          offerDiscount: 0,
+          couponDiscount: 0,
+          appliedCoupon: null,
+          couponError: null,
+          error: req.query.error || null,
+          success: req.query.success || null,
+        });
       }
 
-      const originalPrice = Number(item.original_price) * multiplier;
-      const currentPrice = Number(item.base_price) * multiplier;
-      return {
-        ...item,
-        originalPrice,
-        price: currentPrice,
-        originalSubtotal: originalPrice * item.quantity,
-        subtotal: currentPrice * item.quantity
-      };
-    });
+      const cart = cartResult.rows[0];
+
+      const items = await pool.query(
+        `SELECT 
+            ci.id,
+            ci.quantity,
+            ci.selected_weight,
+            p.id AS product_id,
+            p.category_id,
+            p.name,
+            p.price AS original_price,
+            CASE
+              WHEN p.offer_active = true AND COALESCE(p.offer_percent, 0) > 0
+              THEN ROUND((p.price * (1 - COALESCE(p.offer_percent, 0) / 100.0))::numeric, 2)
+              ELSE p.price
+            END AS base_price,
+            p.image,
+            p.stock,
+            p.price_type,
+            p.offer_active,
+            p.offer_percent
+         FROM cart_items ci
+         JOIN products p ON p.id = ci.product_id
+         WHERE ci.cart_id = $1
+           AND COALESCE(p.is_enabled, true) = true
+         ORDER BY ci.id ASC`,
+        [cart.id]
+      );
+
+      processedItems = items.rows.map(item => {
+        let multiplier = 1;
+        if (item.price_type === 'kg' && item.selected_weight) {
+          multiplier = parseWeightToKg(item.selected_weight) || 1;
+        }
+
+        const originalPrice = Number(item.original_price) * multiplier;
+        const currentPrice = Number(item.base_price) * multiplier;
+        return {
+          ...item,
+          originalPrice,
+          price: currentPrice,
+          originalSubtotal: originalPrice * item.quantity,
+          subtotal: currentPrice * item.quantity
+        };
+      });
+    }
 
     const originalSubtotal = processedItems.reduce((sum, item) => sum + Number(item.originalSubtotal), 0);
     const subtotal = processedItems.reduce((sum, item) => sum + Number(item.subtotal), 0);
@@ -126,6 +125,7 @@ router.get("/", async (req, res, next) => {
       quantity: Number(item.quantity || 0),
       price: Number(item.price || 0)
     }));
+
     if (couponCode) {
       const couponState = await validateCouponForUser({
         client: pool,
@@ -164,11 +164,10 @@ router.get("/", async (req, res, next) => {
 });
 
 // ============================================================
-// POST ADD TO CART (with stock validation)
+// POST ADD TO CART (with guest cart & stock validation)
 // ============================================================
-router.post("/add/:productId", requireAuth, async (req, res) => {
+router.post("/add/:productId", async (req, res) => {
   try {
-    const userId = req.session.user.id;
     const productId = req.params.productId;
     const quantity = parseInt(req.body.quantity) || 1;
     const couponCode = (req.body.coupon_code || "").trim().toUpperCase();
@@ -191,20 +190,6 @@ router.post("/add/:productId", requireAuth, async (req, res) => {
       return res.redirect(`/products/${productId}?error=This product is out of stock`);
     }
 
-    // Get or create cart
-    let cartResult = await pool.query("SELECT * FROM carts WHERE user_id = $1", [userId]);
-    let cart;
-
-    if (cartResult.rows.length === 0) {
-      const newCart = await pool.query(
-        "INSERT INTO carts (user_id) VALUES ($1) RETURNING *",
-        [userId]
-      );
-      cart = newCart.rows[0];
-    } else {
-      cart = cartResult.rows[0];
-    }
-
     let selectedWeight = null;
     if (product.price_type === "kg") {
       const weightOptions = getProductWeightOptions(product);
@@ -217,46 +202,94 @@ router.post("/add/:productId", requireAuth, async (req, res) => {
       }
     }
 
-    // Check existing item in cart (with weight)
-    const itemCheck = await pool.query(
-      "SELECT * FROM cart_items WHERE cart_id = $1 AND product_id = $2 AND (selected_weight = $3 OR (selected_weight IS NULL AND $3 IS NULL))",
-      [cart.id, productId, selectedWeight || null]
-    );
+    let newCartCount = 0;
 
-    if (itemCheck.rows.length > 0) {
-      const newQuantity = itemCheck.rows[0].quantity + quantity;
+    if (!req.session.user) {
+      // Guest cart session handler
+      req.session.guestCart = req.session.guestCart || [];
+      const guestCart = req.session.guestCart;
 
-      // Validate against stock
-      if (newQuantity > product.stock) {
-        if (wantsJson(req)) return res.status(400).json({ ok: false, error: `Only ${product.stock} units available for "${product.name}"` });
-        return res.redirect(`/cart?error=Only ${product.stock} units available for "${product.name}"`);
+      const existingIndex = guestCart.findIndex(
+        item => Number(item.product_id) === Number(product.id) &&
+          (String(item.selected_weight || '') === String(selectedWeight || ''))
+      );
+
+      if (existingIndex > -1) {
+        const newQty = (Number(guestCart[existingIndex].quantity) || 0) + quantity;
+        if (newQty > product.stock) {
+          if (wantsJson(req)) return res.status(400).json({ ok: false, error: `Only ${product.stock} units available for "${product.name}"` });
+          return res.redirect(`/cart?error=Only ${product.stock} units available for "${product.name}"`);
+        }
+        guestCart[existingIndex].quantity = newQty;
+      } else {
+        if (quantity > product.stock) {
+          if (wantsJson(req)) return res.status(400).json({ ok: false, error: `Only ${product.stock} units available` });
+          return res.redirect(`/products/${productId}?error=Only ${product.stock} units available`);
+        }
+        guestCart.push({
+          id: `g_${product.id}_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+          product_id: product.id,
+          quantity,
+          selected_weight: selectedWeight || null,
+        });
       }
 
-      await pool.query(
-        "UPDATE cart_items SET quantity = $1 WHERE id = $2",
-        [newQuantity, itemCheck.rows[0].id]
-      );
+      newCartCount = guestCart.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
     } else {
-      if (quantity > product.stock) {
-        if (wantsJson(req)) return res.status(400).json({ ok: false, error: `Only ${product.stock} units available` });
-        return res.redirect(`/products/${productId}?error=Only ${product.stock} units available`);
+      // Logged-in user database cart handler
+      const userId = req.session.user.id;
+      let cartResult = await pool.query("SELECT * FROM carts WHERE user_id = $1", [userId]);
+      let cart;
+
+      if (cartResult.rows.length === 0) {
+        const newCart = await pool.query(
+          "INSERT INTO carts (user_id) VALUES ($1) RETURNING *",
+          [userId]
+        );
+        cart = newCart.rows[0];
+      } else {
+        cart = cartResult.rows[0];
       }
 
-      await pool.query(
-        "INSERT INTO cart_items (cart_id, product_id, quantity, selected_weight) VALUES ($1, $2, $3, $4)",
-        [cart.id, productId, quantity, selectedWeight || null]
+      const itemCheck = await pool.query(
+        "SELECT * FROM cart_items WHERE cart_id = $1 AND product_id = $2 AND (selected_weight = $3 OR (selected_weight IS NULL AND $3 IS NULL))",
+        [cart.id, productId, selectedWeight || null]
       );
+
+      if (itemCheck.rows.length > 0) {
+        const newQuantity = itemCheck.rows[0].quantity + quantity;
+
+        if (newQuantity > product.stock) {
+          if (wantsJson(req)) return res.status(400).json({ ok: false, error: `Only ${product.stock} units available for "${product.name}"` });
+          return res.redirect(`/cart?error=Only ${product.stock} units available for "${product.name}"`);
+        }
+
+        await pool.query(
+          "UPDATE cart_items SET quantity = $1 WHERE id = $2",
+          [newQuantity, itemCheck.rows[0].id]
+        );
+      } else {
+        if (quantity > product.stock) {
+          if (wantsJson(req)) return res.status(400).json({ ok: false, error: `Only ${product.stock} units available` });
+          return res.redirect(`/products/${productId}?error=Only ${product.stock} units available`);
+        }
+
+        await pool.query(
+          "INSERT INTO cart_items (cart_id, product_id, quantity, selected_weight) VALUES ($1, $2, $3, $4)",
+          [cart.id, productId, quantity, selectedWeight || null]
+        );
+      }
+
+      const countRes = await pool.query(
+        "SELECT COALESCE(SUM(quantity), 0) AS total_items FROM cart_items WHERE cart_id = $1",
+        [cart.id]
+      );
+      newCartCount = parseInt(countRes.rows[0].total_items) || 0;
     }
 
     if (couponCode) {
       req.session.appliedCouponCode = couponCode;
     }
-
-    const countRes = await pool.query(
-      "SELECT COALESCE(SUM(quantity), 0) AS total_items FROM cart_items WHERE cart_id = $1",
-      [cart.id]
-    );
-    const newCartCount = parseInt(countRes.rows[0].total_items) || 0;
 
     if (wantsJson(req)) {
       return res.json({
@@ -278,16 +311,28 @@ router.post("/add/:productId", requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// POST REMOVE ITEM FROM CART
+// POST REMOVE ITEM FROM CART (user or guest)
 // ============================================================
-router.post("/remove/:itemId", requireAuth, async (req, res) => {
+router.post("/remove/:itemId", async (req, res) => {
   try {
+    const itemId = req.params.itemId;
+
+    if (!req.session.user) {
+      if (req.session.guestCart && Array.isArray(req.session.guestCart)) {
+        req.session.guestCart = req.session.guestCart.filter(item => String(item.id) !== String(itemId));
+      }
+      if (wantsJson(req)) {
+        return res.json({ ok: true, removed: true });
+      }
+      return res.redirect("/cart?success=Item removed");
+    }
+
     // Ensure user owns the cart item
     await pool.query(
       `DELETE FROM cart_items ci
        USING carts c
        WHERE ci.id = $1 AND ci.cart_id = c.id AND c.user_id = $2`,
-      [req.params.itemId, req.session.user.id]
+      [itemId, req.session.user.id]
     );
     if (wantsJson(req)) {
       return res.json({ ok: true, removed: true });
@@ -303,9 +348,9 @@ router.post("/remove/:itemId", requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// POST APPLY COUPON
+// POST APPLY COUPON (user or guest)
 // ============================================================
-router.post("/coupon/apply", requireAuth, async (req, res) => {
+router.post("/coupon/apply", async (req, res) => {
   try {
     const code = normalizeCouponCode(req.body.coupon_code);
     if (!code) {
@@ -320,18 +365,19 @@ router.post("/coupon/apply", requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// POST REMOVE COUPON
+// POST REMOVE COUPON (user or guest)
 // ============================================================
-router.post("/coupon/remove", requireAuth, async (req, res) => {
+router.post("/coupon/remove", async (req, res) => {
   req.session.appliedCouponCode = null;
   return res.redirect("/cart?success=Coupon removed");
 });
 
 // ============================================================
-// POST UPDATE QUANTITY (with stock validation)
+// POST UPDATE QUANTITY (user or guest, with stock validation)
 // ============================================================
-router.post("/update/:itemId", requireAuth, async (req, res) => {
+router.post("/update/:itemId", async (req, res) => {
   try {
+    const itemId = req.params.itemId;
     const quantity = parseInt(req.body.quantity, 10);
 
     if (Number.isNaN(quantity)) {
@@ -341,12 +387,56 @@ router.post("/update/:itemId", requireAuth, async (req, res) => {
       return res.redirect("/cart?error=Invalid quantity");
     }
 
+    if (!req.session.user) {
+      req.session.guestCart = req.session.guestCart || [];
+      const itemIndex = req.session.guestCart.findIndex(item => String(item.id) === String(itemId));
+
+      if (itemIndex === -1) {
+        if (wantsJson(req)) return res.status(404).json({ ok: false, message: "Item not found" });
+        return res.redirect("/cart?error=Item not found");
+      }
+
+      if (quantity < 1) {
+        req.session.guestCart.splice(itemIndex, 1);
+        if (wantsJson(req)) return res.json({ ok: true, removed: true });
+        return res.redirect("/cart?success=Item removed from cart");
+      }
+
+      const item = req.session.guestCart[itemIndex];
+      const pRes = await pool.query(
+        "SELECT id, name, stock FROM products WHERE id = $1 AND COALESCE(is_enabled, true) = true",
+        [item.product_id]
+      );
+      if (pRes.rows.length === 0) {
+        req.session.guestCart.splice(itemIndex, 1);
+        if (wantsJson(req)) return res.status(404).json({ ok: false, message: "Product no longer available" });
+        return res.redirect("/cart?error=Product no longer available");
+      }
+
+      const product = pRes.rows[0];
+      if (quantity > product.stock) {
+        if (wantsJson(req)) {
+          return res.status(400).json({
+            ok: false,
+            message: `Only ${product.stock} units available for "${product.name}"`,
+            stock: product.stock
+          });
+        }
+        return res.redirect(`/cart?error=Only ${product.stock} units available for "${product.name}"`);
+      }
+
+      item.quantity = quantity;
+      if (wantsJson(req)) return res.json({ ok: true, quantity });
+      return res.redirect("/cart");
+    }
+
+    // Logged-in user database cart
     if (quantity < 1) {
       await pool.query(
         `DELETE FROM cart_items ci
          USING carts c
          WHERE ci.id = $1 AND ci.cart_id = c.id AND c.user_id = $2`,
-        [req.params.itemId, req.session.user.id]
+        [itemId, req.session.user.id]
       );
       if (wantsJson(req)) {
         return res.json({ ok: true, removed: true });
@@ -354,14 +444,13 @@ router.post("/update/:itemId", requireAuth, async (req, res) => {
       return res.redirect("/cart?success=Item removed from cart");
     }
 
-    // Fetch item with product stock
     const result = await pool.query(
       `SELECT ci.*, p.stock, p.name
        FROM cart_items ci
        JOIN carts c ON c.id = ci.cart_id
        JOIN products p ON p.id = ci.product_id
        WHERE ci.id = $1 AND c.user_id = $2 AND COALESCE(p.is_enabled, true) = true`,
-      [req.params.itemId, req.session.user.id]
+      [itemId, req.session.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -384,7 +473,7 @@ router.post("/update/:itemId", requireAuth, async (req, res) => {
       return res.redirect(`/cart?error=Only ${item.stock} units available for "${item.name}"`);
     }
 
-    await pool.query("UPDATE cart_items SET quantity = $1 WHERE id = $2", [quantity, req.params.itemId]);
+    await pool.query("UPDATE cart_items SET quantity = $1 WHERE id = $2", [quantity, itemId]);
     if (wantsJson(req)) {
       return res.json({ ok: true, quantity });
     }
@@ -400,10 +489,16 @@ router.post("/update/:itemId", requireAuth, async (req, res) => {
 });
 
 // ============================================================
-// POST CLEAR CART
+// POST CLEAR CART (user or guest)
 // ============================================================
-router.post("/clear", requireAuth, async (req, res) => {
+router.post("/clear", async (req, res) => {
   try {
+    if (!req.session.user) {
+      req.session.guestCart = [];
+      req.session.appliedCouponCode = null;
+      return res.redirect("/cart");
+    }
+
     const cartResult = await pool.query(
       "SELECT id FROM carts WHERE user_id = $1",
       [req.session.user.id]

@@ -11,6 +11,7 @@ const pool = require("../config/db");
 const { sendPasswordResetEmail, sendVerificationEmail } = require("../utils/mailer");
 const { sendOTP, verifyOTP } = require("../utils/msg91Service");
 const { authLimiter } = require("../middleware/rateLimiter");
+const { mergeGuestCart } = require("../utils/cartService");
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.get("/login", (req, res) => {
     title: "Login - Shanmukha Stores",
     error: req.query.error || null,
     success: req.query.success || null,
+    info: req.query.info || null,
   });
 });
 
@@ -33,6 +35,7 @@ router.get("/register", (req, res) => {
     title: "Register - Shanmukha Stores",
     error: req.query.error || null,
     success: req.query.success || null,
+    info: req.query.info || null,
   });
 });
 
@@ -70,18 +73,15 @@ router.post("/register", authLimiter, async (req, res) => {
     let email = req.body.email ? String(req.body.email).trim() : null;
     const password = String(req.body.password || "");
     const confirm_password = String(req.body.confirm_password || "");
-    const phone = req.body.phone ? String(req.body.phone || req.body.mobile || "").trim() : null;
-    const otp = req.body.otp ? String(req.body.otp).trim() : null;
+    const rawPhone = String(req.body.phone || req.body.mobile || "").trim();
+    const phone = rawPhone.replace(/\D/g, "");
 
-    if (!full_name || !phone || !password || !confirm_password || !otp) {
-      return res.redirect("/auth/register?error=Please fill all required fields including OTP");
+    if (!full_name || !phone || !password || !confirm_password) {
+      return res.redirect("/auth/register?error=Please fill all required fields");
     }
 
-    // Verify OTP first
-    try {
-      await verifyOTP(phone, otp);
-    } catch (otpErr) {
-      return res.redirect("/auth/register?error=" + encodeURIComponent(otpErr.message || "Invalid OTP"));
+    if (phone.length !== 10) {
+      return res.redirect("/auth/register?error=Please enter a valid 10-digit mobile number");
     }
 
     if (password !== confirm_password) {
@@ -168,6 +168,9 @@ router.post("/login", authLimiter, async (req, res) => {
       profile_image: user.profile_image || null,
     };
 
+    // Merge any items added by guest into the user's permanent cart
+    await mergeGuestCart(req, user.id);
+
     if (user.role === "admin" || user.role === "staff") {
       await pool.query(
         "INSERT INTO staff_activities (user_id, action, details) VALUES ($1, $2, $3)",
@@ -190,7 +193,10 @@ router.post("/login", authLimiter, async (req, res) => {
     if (user.role === "admin") {
       return res.redirect("/admin/dashboard");
     }
-    res.redirect("/");
+
+    const redirectUrl = (req.session && req.session.returnTo) ? req.session.returnTo : "/";
+    if (req.session) delete req.session.returnTo;
+    res.redirect(redirectUrl);
   } catch (err) {
     console.error("Login error:", err.message);
     res.redirect("/auth/login?error=Login failed. Please try again.");
@@ -233,6 +239,9 @@ router.post("/login-otp", authLimiter, async (req, res) => {
       profile_image: user.profile_image || null,
     };
 
+    // Merge any items added by guest into the user's permanent cart
+    await mergeGuestCart(req, user.id);
+
     if (user.role === "admin" || user.role === "staff") {
       await pool.query(
         "INSERT INTO staff_activities (user_id, action, details) VALUES ($1, $2, $3)",
@@ -256,7 +265,10 @@ router.post("/login-otp", authLimiter, async (req, res) => {
     if (user.role === "admin") {
       return res.redirect("/admin/dashboard");
     }
-    res.redirect("/");
+
+    const redirectUrl = (req.session && req.session.returnTo) ? req.session.returnTo : "/";
+    if (req.session) delete req.session.returnTo;
+    res.redirect(redirectUrl);
   } catch (err) {
     console.error("OTP Login error:", err.message);
     res.redirect("/auth/login?error=Login failed. Please try again.");
@@ -634,6 +646,8 @@ router.post("/google", authLimiter, async (req, res) => {
 
     // Session Fixation Defense: regenerate session ID on privilege transition
     const returnTo = req.session ? req.session.returnTo : null;
+    const guestCart = req.session ? req.session.guestCart : null;
+    const appliedCouponCode = req.session ? req.session.appliedCouponCode : null;
 
     req.session.regenerate(async (err) => {
       if (err) {
@@ -650,6 +664,10 @@ router.post("/google", authLimiter, async (req, res) => {
         role: user.role || "user",
         profile_image: user.profile_image || profileImage,
       };
+
+      if (guestCart) req.session.guestCart = guestCart;
+      if (appliedCouponCode) req.session.appliedCouponCode = appliedCouponCode;
+      await mergeGuestCart(req, user.id);
 
       // Staff or Admin audit log
       if (user.role === "admin" || user.role === "staff") {
@@ -783,6 +801,10 @@ router.get("/google/callback", async (req, res) => {
       }
     }
 
+    const returnTo = req.session ? req.session.returnTo : null;
+    const guestCart = req.session ? req.session.guestCart : null;
+    const appliedCouponCode = req.session ? req.session.appliedCouponCode : null;
+
     req.session.regenerate(async (err) => {
       if (err) {
         console.error("Session regeneration error in callback:", err);
@@ -794,12 +816,16 @@ router.get("/google/callback", async (req, res) => {
         profile_image: user.profile_image || profileImage,
       };
 
+      if (guestCart) req.session.guestCart = guestCart;
+      if (appliedCouponCode) req.session.appliedCouponCode = appliedCouponCode;
+      await mergeGuestCart(req, user.id);
+
       if (user.role === "admin") {
         return res.redirect("/admin/dashboard");
       } else if (user.role === "staff") {
         return res.redirect("/staff/dashboard");
       }
-      return res.redirect("/");
+      return res.redirect(returnTo || "/");
     });
   } catch (err) {
     console.error("Google callback error:", err);

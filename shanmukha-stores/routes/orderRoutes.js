@@ -10,7 +10,12 @@ const { generateUpiQrCode, DEFAULT_UPI_ID } = require("../utils/upiQrGenerator")
 const router = express.Router();
 
 const requireAuth = (req, res, next) => {
-  if (!req.session.user) return res.redirect("/auth/login");
+  if (!req.session.user) {
+    if (req.session) {
+      req.session.returnTo = req.originalUrl || "/orders/checkout";
+    }
+    return res.redirect("/auth/login?info=" + encodeURIComponent("Please sign in or create an account to proceed to checkout"));
+  }
   next();
 };
 

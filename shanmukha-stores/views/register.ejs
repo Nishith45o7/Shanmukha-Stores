@@ -14,13 +14,16 @@
             <div class="auth-card">
                 <h2>Create Account</h2>
                 <% if (typeof error !=='undefined' && error) { %>
-                    <div class="auth-alert error">⚠️ <%= error %>
+                    <div class="auth-alert error">⚠️ <%= error %></div>
+                <% } %>
+                <% if (typeof success !=='undefined' && success) { %>
+                    <div class="auth-alert success">✅ <%= success %></div>
+                <% } %>
+                <% if (typeof info !=='undefined' && info) { %>
+                    <div class="auth-alert info" style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; border-radius:8px; padding:12px 14px; margin-bottom:16px; font-size:13.5px; font-weight:500; display:flex; align-items:center; gap:8px;">
+                        <span>ℹ️</span> <%= info %>
                     </div>
-                    <% } %>
-                        <% if (typeof success !=='undefined' && success) { %>
-                            <div class="auth-alert success">✅ <%= success %>
-                            </div>
-                            <% } %>
+                <% } %>
                                 <form action="/auth/register" method="POST" class="auth-form" onsubmit="return validateForm()">
                                     <div class="form-group">
                                         <label class="form-label">Full Name *</label>
@@ -34,15 +37,8 @@
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Mobile Number *</label>
-                                        <div style="display: flex; gap: 8px;">
-                                            <input type="tel" name="phone" id="regPhone" class="form-input" required autocomplete="tel" style="flex: 1;">
-                                            <button type="button" class="auth-btn" id="sendOtpBtn" onclick="sendOTP()" style="width: auto; padding: 0 16px; font-size: 14px;">Send OTP</button>
-                                        </div>
-                                    </div>
-                                    <div class="form-group" id="otpGroup" style="display: none;">
-                                        <label class="form-label">OTP *</label>
-                                        <input type="text" name="otp" id="regOtp" class="form-input" placeholder="Enter OTP">
-                                        <small id="otpMessage" style="color: #2c7a4b; display: block; margin-top: 4px; font-size: 12px;"></small>
+                                        <input type="tel" name="phone" id="regPhone" class="form-input" placeholder="10-digit mobile number" required pattern="[0-9]{10}" maxlength="10" autocomplete="tel">
+                                        <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Enter a valid 10-digit mobile number</small>
                                     </div>
                                     <div class="form-group">
                                         <label class="form-label">Password *</label>
@@ -132,54 +128,18 @@
                     bar.style.backgroundColor = '#2c7a4b'; // Strong (Green)
                 }
             }
-            async function sendOTP() {
-                const phoneInput = document.getElementById('regPhone');
-                const phone = phoneInput.value.trim();
-                if (!phone || phone.length < 10) {
-                    alert("Please enter a valid mobile number.");
-                    return;
-                }
-
-                const btn = document.getElementById('sendOtpBtn');
-                btn.disabled = true;
-                btn.innerText = "Sending...";
-
-                try {
-                    const response = await fetch('/auth/send-otp', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone })
-                    });
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        document.getElementById('otpGroup').style.display = 'block';
-                        document.getElementById('regOtp').required = true;
-                        document.getElementById('otpMessage').innerText = data.message;
-                        document.getElementById('otpMessage').style.color = '#2c7a4b';
-                        btn.innerText = "Sent";
-                    } else {
-                        btn.disabled = false;
-                        btn.innerText = "Send OTP";
-                        alert(data.message || "Failed to send OTP.");
-                    }
-                } catch (err) {
-                    btn.disabled = false;
-                    btn.innerText = "Send OTP";
-                    alert("An error occurred while sending OTP.");
-                }
-            }
-
             function validateForm() {
+                const phoneInput = document.getElementById('regPhone');
+                const phoneDigits = (phoneInput ? phoneInput.value : '').trim().replace(/\D/g, '');
+                if (phoneDigits.length !== 10) {
+                    alert('Please enter a valid 10-digit mobile number.');
+                    if (phoneInput) phoneInput.focus();
+                    return false;
+                }
                 const pwd = document.getElementById('regPass').value;
                 const cpwd = document.getElementById('regPassConfirm').value;
                 if (pwd !== cpwd) {
                     alert('Passwords do not match!');
-                    return false;
-                }
-                const otp = document.getElementById('regOtp');
-                if (otp && otp.required && !otp.value.trim()) {
-                    alert('Please enter the OTP!');
                     return false;
                 }
                 return true;
