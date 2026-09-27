@@ -1,7 +1,12 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { OAuth2Client } = require("google-auth-library");
+let OAuth2Client = null;
+try {
+  OAuth2Client = require("google-auth-library").OAuth2Client;
+} catch (e) {
+  // Graceful fallback if google-auth-library is not installed in serverless runtime
+}
 const pool = require("../config/db");
 const { sendPasswordResetEmail, sendVerificationEmail } = require("../utils/mailer");
 const { sendOTP, verifyOTP } = require("../utils/msg91Service");
