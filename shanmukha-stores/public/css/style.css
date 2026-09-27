@@ -3704,29 +3704,6 @@ select,
    CORE WEB VITALS: ZERO CLS & RENDERING STABILIZATION RULES
    ============================================================ */
 
-/* 1. Hero & Media Space Reservation */
-.hero-visual {
-  min-height: 380px;
-  contain: layout;
-}
-
-.main-banner-visual {
-  width: 100%;
-  max-width: 560px;
-  aspect-ratio: 14 / 9.5;
-  background: #ede8dc;
-  border-radius: var(--radius-xl, 24px);
-  overflow: hidden;
-  contain: layout paint;
-}
-
-.floating-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
 /* 2. Product Grid Zero Layout Shift */
 .products-luxury-grid .img-wrap {
   position: relative;
