@@ -77,6 +77,9 @@ router.get("/", async (req, res, next) => {
       banners: staticData.banners,
       collaborations: staticData.collaborations,
       settings: res.locals.settings || {},
+      success: req.query.success || null,
+      orderConfirmed: req.query.order_confirmed || null,
+      error: req.query.error || null,
     });
   } catch (err) {
     console.error("Home Route Error:", err.message);
@@ -93,6 +96,9 @@ router.get("/", async (req, res, next) => {
       banners: [],
       collaborations: [],
       settings: fallbackSettings,
+      success: req.query.success || null,
+      orderConfirmed: req.query.order_confirmed || null,
+      error: req.query.error || null,
     });
   }
 });

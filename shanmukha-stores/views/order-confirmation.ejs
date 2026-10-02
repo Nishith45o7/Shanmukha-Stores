@@ -78,9 +78,9 @@
           </div>
 
           <!-- WhatsApp Chat Button -->
-          <a href="<%= upiDetails.whatsAppScreenshotUrl %>" target="_blank" rel="noopener noreferrer" class="btn-whatsapp-screenshot">
+          <a href="<%= upiDetails.whatsAppScreenshotUrl %>" target="_blank" rel="noopener noreferrer" class="btn-whatsapp-screenshot" id="btnSendWhatsAppScreenshot" data-order-id="<%= order.id %>">
             <span class="wa-icon">💬</span>
-            <span>Send Screenshot on WhatsApp (+91 <%= upiDetails.whatsAppPhone.replace(/^91/, '') %>)</span>
+            <span id="waBtnText">Send Screenshot on WhatsApp (+91 <%= upiDetails.whatsAppPhone.replace(/^91/, '') %>)</span>
           </a>
         </div>
       </div>
@@ -278,6 +278,24 @@
     <h3>Congratulations!</h3>
     <p>Your order #<%= order.id %> has been placed successfully.</p>
     <div class="order-success-meta">We have started processing your order. Arriving soon.</div>
+  </div>
+</div>
+
+<!-- WhatsApp Screenshot Confirmation Overlay -->
+<div class="wa-confirmed-overlay" id="waConfirmedOverlay" aria-hidden="true">
+  <div class="wa-confirmed-box">
+    <div class="wa-confirmed-icon">
+      <span>✓</span>
+    </div>
+    <div class="wa-confirmed-badge">Order Confirmed</div>
+    <h3>Screenshot Shared via WhatsApp!</h3>
+    <p>Thank you! Your payment verification has been submitted. Our team will verify and dispatch Order #<%= order.id %> immediately.</p>
+    <div class="wa-redirect-bar-wrap">
+      <div class="wa-redirect-bar"></div>
+    </div>
+    <div class="wa-redirect-text">
+      <span class="spinner-dot"></span> Redirecting to Home Page...
+    </div>
   </div>
 </div>
 
@@ -1080,9 +1098,187 @@
       text-align: center;
     }
   }
+
+  /* WhatsApp Screenshot Confirmation Overlay */
+  .wa-confirmed-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(10, 30, 20, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+    padding: 20px;
+  }
+
+  .wa-confirmed-overlay.active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .wa-confirmed-box {
+    background: #ffffff;
+    border-radius: 24px;
+    padding: 38px 28px 30px;
+    max-width: 440px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(37, 211, 102, 0.2);
+    transform: scale(0.9);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .wa-confirmed-overlay.active .wa-confirmed-box {
+    transform: scale(1);
+  }
+
+  .wa-confirmed-icon {
+    width: 76px;
+    height: 76px;
+    background: #dcfce7;
+    border: 3.5px solid #25d366;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    font-size: 38px;
+    color: #15803d;
+    font-weight: 900;
+    box-shadow: 0 8px 24px rgba(37, 211, 102, 0.3);
+    animation: waPulseGreen 1.8s infinite;
+  }
+
+  @keyframes waPulseGreen {
+    0% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.5); }
+    70% { box-shadow: 0 0 0 20px rgba(37, 211, 102, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+  }
+
+  .wa-confirmed-badge {
+    display: inline-block;
+    background: #1e5436;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin-bottom: 12px;
+  }
+
+  .wa-confirmed-box h3 {
+    margin: 0 0 10px;
+    font-size: 22px;
+    font-weight: 800;
+    color: #111827;
+    letter-spacing: -0.3px;
+  }
+
+  .wa-confirmed-box p {
+    margin: 0 0 24px;
+    font-size: 14px;
+    color: #4b5563;
+    line-height: 1.55;
+  }
+
+  .wa-redirect-bar-wrap {
+    height: 7px;
+    background: #f3f4f6;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 14px;
+  }
+
+  .wa-redirect-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #25d366, #10b981);
+    border-radius: 999px;
+    transition: width 1.7s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .wa-confirmed-overlay.active .wa-redirect-bar {
+    width: 100%;
+  }
+
+  .wa-redirect-text {
+    font-size: 13px;
+    font-weight: 700;
+    color: #059669;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .spinner-dot {
+    width: 8px;
+    height: 8px;
+    background: #059669;
+    border-radius: 50%;
+    display: inline-block;
+    animation: dotPulse 1s infinite alternate;
+  }
+
+  @keyframes dotPulse {
+    from { opacity: 0.3; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1.2); }
+  }
 </style>
 
 <script>
+  // WhatsApp Screenshot Confirmation & Seamless Redirection
+  (function () {
+    const waBtn = document.getElementById('btnSendWhatsAppScreenshot');
+    if (!waBtn) return;
+
+    waBtn.addEventListener('click', function (e) {
+      e.preventDefault();
+      const waUrl = this.getAttribute('href');
+      const orderId = this.dataset.orderId || '<%= order.id %>';
+      const overlay = document.getElementById('waConfirmedOverlay');
+
+      // 1. Immediately open WhatsApp in a new window/tab
+      try {
+        window.open(waUrl, '_blank');
+      } catch (err) {
+        console.error('WhatsApp open error:', err);
+      }
+
+      // 2. Display the sleek confirmation overlay
+      if (overlay) {
+        overlay.classList.add('active');
+        overlay.setAttribute('aria-hidden', 'false');
+      }
+
+      // 3. Notify server that screenshot was sent & order confirmation done
+      try {
+        fetch('/orders/api/whatsapp-screenshot-submitted/' + encodeURIComponent(orderId), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': '<%= typeof csrfToken !== "undefined" ? csrfToken : "" %>'
+          },
+          keepalive: true
+        }).catch(() => {});
+      } catch (err) {}
+
+      // 4. Redirect browser back to home page with confirmed order notice
+      setTimeout(function () {
+        const homeUrl = '/?order_confirmed=' + encodeURIComponent(orderId) + '&success=' + encodeURIComponent('Order #' + orderId + ' confirmed! Thank you for ordering with Shanmukha Stores.');
+        window.location.href = homeUrl;
+      }, 1800);
+    });
+  })();
   function copyMerchantUpi() {
     const el = document.getElementById('merchantUpiText');
     const btn = document.getElementById('copyUpiBtn');

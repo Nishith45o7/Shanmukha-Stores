@@ -1170,6 +1170,54 @@ router.get("/pay/:id", async (req, res, next) => {
 });
 
 // ============================================================
+// POST WHATSAPP SCREENSHOT SUBMITTED / CONFIRMED
+// ============================================================
+router.post("/api/whatsapp-screenshot-submitted/:id", async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    const userId = req.session && req.session.user ? req.session.user.id : null;
+
+    const orderRes = await pool.query(
+      "SELECT id, total_amount, status, payment_status, user_id FROM orders WHERE id = $1",
+      [orderId]
+    );
+    if (orderRes.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: "Order not found" });
+    }
+
+    const order = orderRes.rows[0];
+    if (userId && order.user_id && order.user_id !== userId && req.session.user.role !== "admin" && req.session.user.role !== "staff") {
+      return res.status(403).json({ ok: false, error: "Unauthorized" });
+    }
+
+    await pool.query(
+      "UPDATE orders SET payment_status = CASE WHEN payment_status = 'pending' THEN 'submitted' ELSE payment_status END WHERE id = $1",
+      [orderId]
+    );
+
+    if (order.user_id) {
+      await pool.query(
+        "INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)",
+        [order.user_id, `Screenshot Sent: Order #${orderId}`, `Payment screenshot submitted for Order #${orderId}. Confirmation completed!`, "order"]
+      ).catch(() => {});
+    }
+
+    const opsUsers = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'staff') AND COALESCE(is_blocked, false) = false");
+    for (const u of opsUsers.rows) {
+      await pool.query(
+        "INSERT INTO notifications (user_id, title, message, type) VALUES ($1, $2, $3, $4)",
+        [u.id, `WhatsApp Screenshot Sent: Order #${orderId}`, `Customer sent payment screenshot via WhatsApp for Order #${orderId}.`, "order"]
+      ).catch(() => {});
+    }
+
+    return res.json({ ok: true, message: "Order payment confirmed successfully" });
+  } catch (err) {
+    console.error("Screenshot confirm error:", err);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// ============================================================
 // GET USER ORDER HISTORY (with pagination)
 // ============================================================
 router.get("/", requireAuth, async (req, res, next) => {
