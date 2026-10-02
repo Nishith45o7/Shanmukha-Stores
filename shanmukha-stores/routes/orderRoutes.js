@@ -23,25 +23,10 @@ const requireAuth = (req, res, next) => {
 // ============================================================
 // ORDER MINIMUMS CONFIG
 // ============================================================
-// Tier 1 - Vijayawada: Minimum order ₹499 (no item count restriction)
-// Tier 2 - Andhra Pradesh (outside Vijayawada): Minimum order ₹899 (no item count restriction)
-// Tier 3 - Outside Andhra Pradesh (Other States / Rest of India): Minimum order ₹1,299 (no item count restriction)
-
-const AP_CITIES = new Set([
-  "vijayawada", "bezawada", "tadepalli", "kanuru", "penamaluru", "poranki",
-  "mangalagiri", "guntur", "visakhapatnam", "vizag", "tirupati", "kakinada",
-  "rajahmundry", "nellore", "kurnool", "eluru", "ongole", "anantapur",
-  "kadapa", "chittoor", "machilipatnam", "tenali", "vizianagaram", "srikakulam",
-  "bhimavaram", "proddatur", "nandyal", "hindupur", "madanapalle", "adoni",
-  "amaravati", "chirala", "dharmavaram", "gudivada", "narasaraopet"
-]);
-
-const isAndhraPradesh = (state, city) => {
-  const s = String(state || "").toLowerCase().trim();
-  const c = String(city || "").toLowerCase().trim();
-  if (/andhra|ap\b|^ap$|a\.p\./i.test(s)) return true;
-  return AP_CITIES.has(c);
-};
+// MINIMUM ORDER VALUE (MOV) RULES
+// Tier 1 - Vijayawada: Minimum order ₹499
+// Tier 2 - Other than Vijayawada (All other locations): Minimum order ₹899
+// ============================================================
 
 const isVijayawada = (city) => {
   const c = String(city || "").toLowerCase().trim();
@@ -55,15 +40,9 @@ const getOrderMinimumRules = (city, state = "") => {
       minAmount: 499,
     };
   }
-  if (isAndhraPradesh(state, city)) {
-    return {
-      region: "Andhra Pradesh",
-      minAmount: 899,
-    };
-  }
   return {
-    region: "Outside Andhra Pradesh",
-    minAmount: 1299,
+    region: "Other than Vijayawada",
+    minAmount: 899,
   };
 };
 

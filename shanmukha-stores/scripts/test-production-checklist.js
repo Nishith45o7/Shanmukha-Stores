@@ -145,9 +145,8 @@ async function runTestSuite() {
 
   // --- SECTION 5: Delivery Rules ---
   console.log('\n--- 5. Delivery Rules & Thresholds ---');
-  recordTest('P41-P43', 'Vijayawada Regional Rule: Local tier active', 'Delivery Rules', true, 'Vijayawada Tier Enabled', 'Vijayawada threshold configured');
-  recordTest('P44-P48', 'AP Regional Rules (Tadepalli, Kanuru, Penamaluru, NTR)', 'Delivery Rules', true, 'AP Regional Tier Enabled', 'Regional AP threshold configured');
-  recordTest('P49-P50', 'Rest of India / Non-AP Threshold', 'Delivery Rules', true, 'National Tier Active', 'Non-AP threshold configured');
+  recordTest('P41-P43', 'Vijayawada Regional Rule: Local tier (₹499)', 'Delivery Rules', true, 'Vijayawada Tier Enabled', 'Vijayawada ₹499 MOV');
+  recordTest('P44-P50', 'Other than Vijayawada Rule: Regional tier (₹899)', 'Delivery Rules', true, 'Other Locations Tier Enabled', 'Other than Vijayawada ₹899 MOV');
 
   // --- SECTION 8: Admin & RBAC ---
   console.log('\n--- 8. Admin Panel & Access Control ---');

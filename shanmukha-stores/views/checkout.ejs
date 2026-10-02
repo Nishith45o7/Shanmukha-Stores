@@ -50,25 +50,15 @@
 
                       <% 
                         var savedAddresses = (typeof addresses !== 'undefined' && Array.isArray(addresses)) ? addresses : [];
-                        const AP_CITIES_CHECKOUT = [
-                          "vijayawada", "bezawada", "tadepalli", "kanuru", "penamaluru", "poranki",
-                          "mangalagiri", "guntur", "visakhapatnam", "vizag", "tirupati", "kakinada",
-                          "rajahmundry", "nellore", "kurnool", "eluru", "ongole", "anantapur",
-                          "kadapa", "chittoor", "machilipatnam", "tenali", "vizianagaram", "srikakulam",
-                          "bhimavaram", "proddatur", "nandyal", "hindupur", "madanapalle", "adoni",
-                          "amaravati", "chirala", "dharmavaram", "gudivada", "narasaraopet"
-                        ];
                       %>
 
                       <% if (savedAddresses.length > 0) { %>
                         <div class="address-selector">
                           <% savedAddresses.forEach((addr, i) => { 
                             const cClean = String(addr.city || '').toLowerCase().trim();
-                            const sClean = String(addr.state || '').toLowerCase().trim();
                             const isVja = cClean === 'vijayawada' || cClean === 'bezawada';
-                            const isAp = /andhra|ap\b|^ap$|a\.p\./i.test(sClean) || AP_CITIES_CHECKOUT.includes(cClean);
-                            const minAmt = isVja ? 499 : (isAp ? 899 : 1299);
-                            const regionName = isVja ? 'Vijayawada' : (isAp ? 'Andhra Pradesh' : 'Outside AP');
+                            const minAmt = isVja ? 499 : 899;
+                            const regionName = isVja ? 'Vijayawada' : 'Other than Vijayawada';
                           %>
                             <label class="address-option">
                               <input type="radio" name="address_id" value="<%= addr.id %>" 
@@ -532,18 +522,8 @@
 
     const ORDER_SUBTOTAL = <%= Number(subtotal || total || 0) %>;
 
-    const AP_CITIES_CLIENT = new Set([
-      "vijayawada", "bezawada", "tadepalli", "kanuru", "penamaluru", "poranki",
-      "mangalagiri", "guntur", "visakhapatnam", "vizag", "tirupati", "kakinada",
-      "rajahmundry", "nellore", "kurnool", "eluru", "ongole", "anantapur",
-      "kadapa", "chittoor", "machilipatnam", "tenali", "vizianagaram", "srikakulam",
-      "bhimavaram", "proddatur", "nandyal", "hindupur", "madanapalle", "adoni",
-      "amaravati", "chirala", "dharmavaram", "gudivada", "narasaraopet"
-    ]);
-
     function getOrderMinimumClient(city, state) {
       const c = String(city || "").toLowerCase().trim();
-      const s = String(state || "").toLowerCase().trim();
 
       if (c === "vijayawada" || c === "bezawada") {
         return {
@@ -552,17 +532,10 @@
           minAmount: 499,
         };
       }
-      if (/andhra|ap\b|^ap$|a\.p\./i.test(s) || AP_CITIES_CLIENT.has(c)) {
-        return {
-          region: "Andhra Pradesh",
-          name: city ? (city.charAt(0).toUpperCase() + city.slice(1)) : "Andhra Pradesh",
-          minAmount: 899,
-        };
-      }
       return {
-        region: "Outside Andhra Pradesh",
-        name: city ? (city.charAt(0).toUpperCase() + city.slice(1)) : "Other States",
-        minAmount: 1299,
+        region: "Other than Vijayawada",
+        name: city ? (city.charAt(0).toUpperCase() + city.slice(1)) : "Other locations",
+        minAmount: 899,
       };
     }
 
