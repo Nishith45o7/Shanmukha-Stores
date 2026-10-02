@@ -22,8 +22,22 @@
     </div>
   <% } else { %>
     <div class="products-grid">
-      <% wishlist.forEach(item => { const pid = item.product_id || item.id; %>
-        <div class="product-card" id="wishlistCard-<%= pid %>">
+      <% wishlist.forEach(item => { 
+          const pid = item.product_id || item.id; 
+          const basePrice = Number(item.price || 0);
+          const effectivePrice = Number(item.effective_price || item.price || 0);
+          const availWeights = Array.isArray(item.available_weights) ? item.available_weights : (item.available_weights ? JSON.parse(item.available_weights) : []);
+      %>
+        <div class="product-card" id="wishlistCard-<%= pid %>"
+          data-price-type="<%= item.price_type %>"
+          data-product-id="<%= pid %>"
+          data-product-name="<%= item.name %>"
+          data-product-image="<%= item.image || '/images/placeholder.png' %>"
+          data-product-category="Wishlist"
+          data-base-price="<%= basePrice %>"
+          data-effective-price="<%= effectivePrice %>"
+          data-stock="<%= item.stock %>"
+          data-weights='<%= JSON.stringify(availWeights) %>'>
           <div class="product-image">
             <a href="/products/<%= pid %>">
               <img src="<%= item.image || '/images/placeholder.png' %>" alt="<%= item.name %>" onerror="this.src='/images/placeholder.png'">
@@ -31,7 +45,7 @@
           </div>
           <div class="product-info">
             <h3 class="product-name"><a href="/products/<%= pid %>"><%= item.name %></a></h3>
-            <p class="product-price">&#8377;<%= Number(item.price).toLocaleString('en-IN') %>
+            <p class="product-price">&#8377;<%= Number(effectivePrice).toLocaleString('en-IN') %>
               <% if (item.price_type === 'kg') { %>
                 <span class="price-unit-note">per kg</span>
               <% } else { %>
@@ -40,18 +54,27 @@
             </p>
             <% if (item.price_type === 'kg') { %>
               <div class="product-sizes-pill-list">
-                <% const availWeights = Array.isArray(item.available_weights) ? item.available_weights : (item.available_weights ? JSON.parse(item.available_weights) : []); %>
                 <% availWeights.forEach(size => { %>
-                  <span class="size-pill"><%= size %></span>
+                  <button type="button" class="size-pill size-pill-btn" data-weight="<%= size %>" title="Select <%= size %>"><%= size %></button>
                 <% }) %>
               </div>
             <% } %>
             <% if (item.stock === 0) { %>
               <div class="out-of-stock-label">Out of Stock</div>
             <% } else { %>
-              <form action="/cart/add/<%= pid %>" method="POST" style="margin-bottom: 8px;">
+              <form action="/cart/add/<%= pid %>" method="POST" style="margin-bottom: 8px;" class="atc-form-card"
+                data-price-type="<%= item.price_type %>"
+                data-product-id="<%= pid %>"
+                data-product-name="<%= item.name %>"
+                data-product-image="<%= item.image || '/images/placeholder.png' %>"
+                data-product-category="Wishlist"
+                data-base-price="<%= basePrice %>"
+                data-effective-price="<%= effectivePrice %>"
+                data-stock="<%= item.stock %>"
+                data-weights='<%= JSON.stringify(availWeights) %>'>
                 <input type="hidden" name="quantity" value="1">
-                <button type="submit" class="add-cart-btn">Add to Cart</button>
+                <input type="hidden" name="selected_weight" value="<%= availWeights[0] || '' %>">
+                <button type="submit" class="add-cart-btn"><%= item.price_type === 'kg' ? 'Add to Cart ▾' : 'Add to Cart' %></button>
               </form>
             <% } %>
             <form action="/wishlist/toggle/<%= pid %>" method="POST" class="wishlist-remove-form" data-product-id="<%= pid %>">

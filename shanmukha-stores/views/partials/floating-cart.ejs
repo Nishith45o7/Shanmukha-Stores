@@ -334,7 +334,7 @@
       }
 
       // 1. Locate Product Image for the flying clone
-      const productCard = form.closest('.product-card, .luxury-card, .product-grid-item, .product-details-container, .main-product-layout, .product-detail, .collection-card') || form;
+      const productCard = form.closest('.product-card, .product-card-luxury, .luxury-card, .product-grid-item, .product-details-container, .main-product-layout, .product-detail, .collection-card, .weight-modal-sheet') || form;
       const productImgEl = productCard.querySelector('img') || form.querySelector('img');
       const imgSrc = productImgEl ? productImgEl.src : '/images/placeholder.png';
 

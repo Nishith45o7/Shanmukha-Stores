@@ -3647,12 +3647,20 @@ body:has(.order-success-card) #swiggyFloatingCart,
   font-weight: 600;
   color: var(--black);
   background: white;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 .size-pill:not(.unavailable) {
   border-color: var(--border);
 }
-.size-pill:not(.unavailable):hover {
+.size-pill:not(.unavailable):hover,
+button.size-pill:hover {
   border-color: var(--emerald);
+  color: var(--emerald);
+  background: rgba(16, 185, 129, 0.08);
+  transform: translateY(-1px);
 }
 .size-pill.unavailable {
   color: #9ca3af;

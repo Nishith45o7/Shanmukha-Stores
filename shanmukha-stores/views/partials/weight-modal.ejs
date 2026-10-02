@@ -1,0 +1,840 @@
+<!-- ============================================================
+     LUXURY WEIGHT SELECTION POPUP / BOTTOM-SHEET MODAL
+     Appears when clicking "Add to Cart" on any product priced by weight (KG)
+============================================================ -->
+<div id="weightSelectModal" class="weight-modal-overlay" aria-hidden="true" style="display: none;">
+  <div class="weight-modal-backdrop" onclick="closeWeightModal()"></div>
+  <div class="weight-modal-sheet" role="dialog" aria-modal="true" aria-labelledby="weightModalTitle">
+    <div class="weight-modal-drag-handle" aria-hidden="true"></div>
+
+    <!-- Header: Product Info -->
+    <div class="weight-modal-header">
+      <div class="weight-modal-product-summary">
+        <div class="weight-modal-thumb-wrap">
+          <img id="weightModalImg" src="/images/placeholder.png" alt="Product" class="weight-modal-thumb" onerror="this.src='/images/placeholder.png'">
+        </div>
+        <div class="weight-modal-titles">
+          <span id="weightModalCategory" class="weight-modal-cat">Bespoke</span>
+          <h3 id="weightModalTitle" class="weight-modal-name">Select Weight</h3>
+          <div class="weight-modal-base-price">
+            <span class="base-price-label">Price:</span>
+            <span id="weightModalBasePrice" class="base-price-tag">&#8377;0</span>
+            <span class="base-price-unit">/ kg</span>
+            <span id="weightModalOfferBadge" class="modal-offer-badge" style="display: none;">10% OFF</span>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="weight-modal-close" onclick="closeWeightModal()" aria-label="Close weight selection">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Body: Weight Options -->
+    <div class="weight-modal-body">
+      <div class="weight-modal-section-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+        </svg>
+        <span>Choose Pack Size / Weight</span>
+      </div>
+
+      <div id="weightModalOptionsList" class="weight-options-grid">
+        <!-- Rendered dynamically via JavaScript -->
+      </div>
+
+      <!-- Quantity Row -->
+      <div class="weight-modal-qty-row">
+        <div class="qty-info">
+          <span class="qty-label">Quantity</span>
+          <span class="qty-hint">Number of packs</span>
+        </div>
+        <div class="modal-qty-stepper">
+          <button type="button" class="modal-qty-btn minus" onclick="adjustModalQty(-1)" aria-label="Decrease quantity">−</button>
+          <input type="number" id="weightModalQty" value="1" min="1" max="99" readonly aria-label="Selected quantity">
+          <button type="button" class="modal-qty-btn plus" onclick="adjustModalQty(1)" aria-label="Increase quantity">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer: Total & Add to Cart -->
+    <div class="weight-modal-footer">
+      <div class="modal-footer-price">
+        <span class="total-label">Total Price</span>
+        <div class="total-price-wrap">
+          <span id="weightModalTotalPrice" class="total-amount">&#8377;0</span>
+          <span id="weightModalOrigPrice" class="orig-amount" style="display: none;">&#8377;0</span>
+        </div>
+      </div>
+      <form id="weightModalForm" action="" method="POST" class="modal-atc-form">
+        <input type="hidden" name="quantity" id="weightModalFormQty" value="1">
+        <input type="hidden" name="selected_weight" id="weightModalFormWeight" value="">
+        <button type="submit" id="weightModalSubmitBtn" class="btn-modal-atc">
+          <span>Add to Cart</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path>
+            <path d="M3 6h18"></path>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* ============================================================
+     WEIGHT SELECTION MODAL STYLES (LUXURY THEME)
+  ============================================================ */
+  .weight-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s;
+  }
+
+  .weight-modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .weight-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .weight-modal-sheet {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 460px;
+    background: #0f172a; /* deep luxury slate */
+    color: #f8fafc;
+    border: 1px solid rgba(245, 158, 11, 0.3); /* gold accent */
+    border-radius: 20px;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(245, 158, 11, 0.15);
+    transform: scale(0.92) translateY(14px);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 40px);
+  }
+
+  .weight-modal-overlay.active .weight-modal-sheet {
+    transform: scale(1) translateY(0);
+  }
+
+  .weight-modal-drag-handle {
+    display: none;
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    margin: 8px auto 0;
+  }
+
+  /* Header */
+  .weight-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 12px;
+  }
+
+  .weight-modal-product-summary {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .weight-modal-thumb-wrap {
+    width: 60px;
+    height: 60px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    flex-shrink: 0;
+  }
+
+  .weight-modal-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .weight-modal-titles {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .weight-modal-cat {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #f59e0b; /* luxury gold */
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .weight-modal-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0 0 4px;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .weight-modal-base-price {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #94a3b8;
+  }
+
+  .base-price-label {
+    font-size: 12px;
+  }
+
+  .base-price-tag {
+    font-weight: 700;
+    color: #34d399; /* bright emerald */
+  }
+
+  .modal-offer-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 800;
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    letter-spacing: 0.5px;
+  }
+
+  .weight-modal-close {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    color: #94a3b8;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .weight-modal-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    transform: scale(1.05);
+  }
+
+  /* Body */
+  .weight-modal-body {
+    padding: 16px 20px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .weight-modal-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #cbd5e1;
+    margin-bottom: 12px;
+  }
+
+  .weight-modal-section-title svg {
+    color: #f59e0b;
+  }
+
+  /* Options Grid */
+  .weight-options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .weight-opt-card {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    user-select: none;
+  }
+
+  .weight-opt-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(245, 158, 11, 0.45);
+    transform: translateY(-2px);
+  }
+
+  .weight-opt-card.selected {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(245, 158, 11, 0.12));
+    border-color: #f59e0b;
+    box-shadow: 0 0 18px rgba(245, 158, 11, 0.22);
+  }
+
+  .weight-opt-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .weight-opt-label {
+    font-weight: 800;
+    font-size: 15px;
+    color: #ffffff;
+    letter-spacing: 0.3px;
+  }
+
+  .weight-opt-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .weight-opt-card.selected .weight-opt-check {
+    border-color: #f59e0b;
+    background: #f59e0b;
+  }
+
+  .weight-opt-check svg {
+    display: none;
+    width: 12px;
+    height: 12px;
+    stroke: #0f172a;
+    stroke-width: 3;
+  }
+
+  .weight-opt-card.selected .weight-opt-check svg {
+    display: block;
+  }
+
+  .weight-opt-prices {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .weight-opt-price {
+    font-size: 15px;
+    font-weight: 800;
+    color: #34d399; /* emerald */
+  }
+
+  .weight-opt-orig {
+    font-size: 12px;
+    color: #64748b;
+    text-decoration: line-through;
+  }
+
+  /* Quantity Row */
+  .weight-modal-qty-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .qty-label {
+    display: block;
+    font-weight: 700;
+    font-size: 14px;
+    color: #f1f5f9;
+  }
+
+  .qty-hint {
+    display: block;
+    font-size: 11px;
+    color: #94a3b8;
+  }
+
+  .modal-qty-stepper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .modal-qty-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 18px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+  }
+
+  .modal-qty-btn:hover {
+    background: #f59e0b;
+    color: #0f172a;
+    border-color: #f59e0b;
+  }
+
+  #weightModalQty {
+    width: 48px;
+    height: 36px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 16px;
+  }
+
+  /* Footer */
+  .weight-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: rgba(15, 23, 42, 0.98);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 16px;
+  }
+
+  .modal-footer-price {
+    min-width: 90px;
+  }
+
+  .total-label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+  }
+
+  .total-amount {
+    font-size: 22px;
+    font-weight: 900;
+    color: #f59e0b; /* luxury gold */
+  }
+
+  .orig-amount {
+    font-size: 13px;
+    color: #64748b;
+    text-decoration: line-through;
+    margin-left: 6px;
+  }
+
+  .modal-atc-form {
+    flex: 1;
+    margin: 0;
+  }
+
+  .btn-modal-atc {
+    width: 100%;
+    height: 48px;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35);
+    transition: all 0.2s ease;
+  }
+
+  .btn-modal-atc:hover {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(16, 185, 129, 0.5);
+  }
+
+  .btn-modal-atc:active {
+    transform: translateY(0);
+  }
+
+  /* Mobile Bottom Sheet Adaptation */
+  @media (max-width: 640px) {
+    .weight-modal-overlay {
+      padding: 0;
+      align-items: flex-end;
+    }
+
+    .weight-modal-sheet {
+      max-width: 100%;
+      border-radius: 24px 24px 0 0;
+      transform: translateY(100%);
+      max-height: 85vh;
+      border-bottom: none;
+      border-left: none;
+      border-right: none;
+    }
+
+    .weight-modal-drag-handle {
+      display: block;
+    }
+
+    .weight-modal-overlay.active .weight-modal-sheet {
+      transform: translateY(0);
+    }
+
+    .weight-options-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .weight-opt-card {
+      padding: 10px 14px;
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    // Current Active Modal State
+    let currentModalProduct = null;
+    let currentSelectedWeight = null;
+    let currentQty = 1;
+
+    // Helper: Parse weight to multiplier
+    function parseWeightMultiplier(weightStr) {
+      if (!weightStr) return 1;
+      const raw = String(weightStr).toLowerCase().replace(/\s+/g, '');
+      const match = raw.match(/^(\d+(?:\.\d+)?)(kg|g|gm)$/);
+      if (!match) return 1;
+      const qty = parseFloat(match[1]);
+      const unit = match[2];
+      return unit === 'kg' ? qty : (qty / 1000);
+    }
+
+    // Format currency INR
+    function formatINR(amount) {
+      return Number(Math.round(amount)).toLocaleString('en-IN');
+    }
+
+    // Open Modal with Product Data
+    window.openWeightModal = function (product, preselectedWeight) {
+      currentModalProduct = product;
+      currentQty = 1;
+
+      const modal = document.getElementById('weightSelectModal');
+      const imgEl = document.getElementById('weightModalImg');
+      const titleEl = document.getElementById('weightModalTitle');
+      const catEl = document.getElementById('weightModalCategory');
+      const basePriceEl = document.getElementById('weightModalBasePrice');
+      const offerBadge = document.getElementById('weightModalOfferBadge');
+      const qtyInput = document.getElementById('weightModalQty');
+      const optionsContainer = document.getElementById('weightModalOptionsList');
+      const formEl = document.getElementById('weightModalForm');
+
+      if (!modal) return;
+
+      // Populate Product Info
+      imgEl.src = product.image || '/images/placeholder.png';
+      titleEl.innerText = product.name || 'Product';
+      catEl.innerText = product.category || 'Grocery';
+
+      const effectivePrice = Number(product.effectivePrice || product.price || 0);
+      const basePrice = Number(product.basePrice || product.price || 0);
+      const offerPercent = Number(product.offerPercent || 0);
+      const hasOffer = (offerPercent > 0 || (product.offerActive && effectivePrice < basePrice));
+
+      basePriceEl.innerHTML = '&#8377;' + formatINR(effectivePrice);
+      if (hasOffer && offerPercent > 0) {
+        offerBadge.innerText = Math.round(offerPercent) + '% OFF';
+        offerBadge.style.display = 'inline-block';
+      } else {
+        offerBadge.style.display = 'none';
+      }
+
+      // Parse available weights
+      let weights = [];
+      try {
+        if (Array.isArray(product.weights)) {
+          weights = product.weights;
+        } else if (typeof product.weights === 'string') {
+          weights = JSON.parse(product.weights);
+        }
+      } catch (e) {
+        weights = [];
+      }
+
+      if (!weights || !weights.length) {
+        weights = ['100gm', '250gm', '500gm', '1kg'];
+      }
+
+      // Determine initial selection
+      currentSelectedWeight = preselectedWeight && weights.includes(preselectedWeight)
+        ? preselectedWeight
+        : (weights.length ? weights[0] : '1kg');
+
+      // Render weight options
+      optionsContainer.innerHTML = '';
+      weights.forEach(function (w) {
+        const mult = parseWeightMultiplier(w);
+        const optEffectivePrice = effectivePrice * mult;
+        const optBasePrice = basePrice * mult;
+        const isSelected = (w === currentSelectedWeight);
+
+        const card = document.createElement('div');
+        card.className = 'weight-opt-card' + (isSelected ? ' selected' : '');
+        card.setAttribute('data-weight', w);
+        card.onclick = function () {
+          selectModalWeight(w);
+        };
+
+        let priceHtml = '<span class="weight-opt-price">&#8377;' + formatINR(optEffectivePrice) + '</span>';
+        if (hasOffer && optBasePrice > optEffectivePrice) {
+          priceHtml += '<span class="weight-opt-orig">&#8377;' + formatINR(optBasePrice) + '</span>';
+        }
+
+        card.innerHTML = `
+          <div class="weight-opt-top">
+            <span class="weight-opt-label">${w}</span>
+            <div class="weight-opt-check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+          </div>
+          <div class="weight-opt-prices">
+            ${priceHtml}
+          </div>
+        `;
+        optionsContainer.appendChild(card);
+      });
+
+      // Set Quantity & Form Action
+      qtyInput.value = currentQty;
+      formEl.action = '/cart/add/' + product.id;
+      document.getElementById('weightModalFormQty').value = currentQty;
+      document.getElementById('weightModalFormWeight').value = currentSelectedWeight;
+
+      updateModalTotals();
+
+      // Show Modal
+      modal.style.display = 'flex';
+      setTimeout(function () {
+        modal.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }, 10);
+    };
+
+    // Close Modal
+    window.closeWeightModal = function () {
+      const modal = document.getElementById('weightSelectModal');
+      if (!modal) return;
+      modal.classList.remove('active');
+      document.body.style.overflow = '';
+      setTimeout(function () {
+        modal.style.display = 'none';
+        currentModalProduct = null;
+      }, 260);
+    };
+
+    // Select Weight
+    window.selectModalWeight = function (weight) {
+      currentSelectedWeight = weight;
+      document.getElementById('weightModalFormWeight').value = weight;
+
+      const cards = document.querySelectorAll('.weight-opt-card');
+      cards.forEach(function (c) {
+        if (c.getAttribute('data-weight') === weight) {
+          c.classList.add('selected');
+        } else {
+          c.classList.remove('selected');
+        }
+      });
+
+      updateModalTotals();
+    };
+
+    // Adjust Quantity
+    window.adjustModalQty = function (delta) {
+      let maxStock = 99;
+      if (currentModalProduct && currentModalProduct.stock) {
+        maxStock = parseInt(currentModalProduct.stock, 10) || 99;
+      }
+      currentQty = Math.max(1, Math.min(maxStock, currentQty + delta));
+      document.getElementById('weightModalQty').value = currentQty;
+      document.getElementById('weightModalFormQty').value = currentQty;
+      updateModalTotals();
+    };
+
+    // Calculate Total Price
+    function updateModalTotals() {
+      if (!currentModalProduct) return;
+      const effectivePrice = Number(currentModalProduct.effectivePrice || currentModalProduct.price || 0);
+      const basePrice = Number(currentModalProduct.basePrice || currentModalProduct.price || 0);
+      const mult = parseWeightMultiplier(currentSelectedWeight);
+
+      const totalEffective = effectivePrice * mult * currentQty;
+      const totalBase = basePrice * mult * currentQty;
+
+      const totalEl = document.getElementById('weightModalTotalPrice');
+      const origEl = document.getElementById('weightModalOrigPrice');
+
+      if (totalEl) totalEl.innerHTML = '&#8377;' + formatINR(totalEffective);
+
+      if (origEl) {
+        if (totalBase > totalEffective) {
+          origEl.innerHTML = '&#8377;' + formatINR(totalBase);
+          origEl.style.display = 'inline';
+        } else {
+          origEl.style.display = 'none';
+        }
+      }
+    }
+
+    // Escape Key Listener
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeWeightModal();
+      }
+    });
+
+    // Helper: Extract Product Data from an HTML element/card/form
+    function extractProductData(el) {
+      const card = el.closest('.product-card-luxury, .product-card, .collection-card, .wishlist-card') || el;
+      const form = el.closest('form') || card.querySelector('form[action*="/cart/add/"]');
+
+      const dataSrc = form || card;
+      if (!dataSrc) return null;
+
+      // Read from attributes
+      let weights = dataSrc.getAttribute('data-weights');
+      if (weights) {
+        try { weights = JSON.parse(weights); } catch (e) { weights = []; }
+      }
+
+      const id = dataSrc.getAttribute('data-product-id') || (form && form.action ? (form.action.match(/\/cart\/add\/(\d+)/) || [])[1] : null);
+      if (!id) return null;
+
+      const imgEl = card.querySelector('img');
+      const nameEl = card.querySelector('.product-name, h3, h4');
+      const catEl = card.querySelector('.category, .product-category-tag');
+
+      return {
+        id: id,
+        name: dataSrc.getAttribute('data-product-name') || (nameEl ? nameEl.innerText.trim() : 'Product'),
+        category: dataSrc.getAttribute('data-product-category') || (catEl ? catEl.innerText.trim() : 'Grocery'),
+        image: dataSrc.getAttribute('data-product-image') || (imgEl ? imgEl.src : '/images/placeholder.png'),
+        priceType: dataSrc.getAttribute('data-price-type') || 'unit',
+        basePrice: parseFloat(dataSrc.getAttribute('data-base-price') || 0),
+        effectivePrice: parseFloat(dataSrc.getAttribute('data-effective-price') || dataSrc.getAttribute('data-base-price') || 0),
+        offerPercent: parseFloat(dataSrc.getAttribute('data-offer-percent') || 0),
+        offerActive: dataSrc.getAttribute('data-offer-active') === '1' || dataSrc.getAttribute('data-offer-active') === 'true',
+        stock: parseInt(dataSrc.getAttribute('data-stock') || 99, 10),
+        weights: weights || []
+      };
+    }
+
+    // Click Interceptor for Size Pills & Add to Cart on KG products
+    document.addEventListener('click', function (e) {
+      // 1. Click on a size pill directly
+      const pill = e.target.closest('.size-pill');
+      if (pill) {
+        const card = pill.closest('.product-card-luxury, .product-card, .collection-card, .wishlist-card');
+        if (card) {
+          const product = extractProductData(card);
+          if (product && product.priceType === 'kg') {
+            e.preventDefault();
+            e.stopPropagation();
+            const chosenWeight = pill.getAttribute('data-weight') || pill.innerText.trim();
+            openWeightModal(product, chosenWeight);
+            return;
+          }
+        }
+      }
+
+      // 2. Click on Add to Cart button
+      const atcBtn = e.target.closest('.btn-luxury-card-atc, .add-cart-btn');
+      if (atcBtn) {
+        const form = atcBtn.closest('form');
+        const card = atcBtn.closest('.product-card-luxury, .product-card, .collection-card, .wishlist-card');
+        const product = extractProductData(card || atcBtn);
+
+        // If product is priced in KG and user is clicking from catalog/home/wishlist
+        if (product && product.priceType === 'kg') {
+          e.preventDefault();
+          e.stopPropagation();
+          openWeightModal(product);
+          return;
+        }
+      }
+    });
+
+    // Form Submit Interceptor for KG Product Cards (Catch Enter key or standard submit)
+    document.addEventListener('submit', function (e) {
+      const form = e.target;
+      if (!form || !form.action || !form.action.includes('/cart/add/')) return;
+      if (form.id === 'weightModalForm') {
+        // Modal submission: close modal after brief delay so flying animation starts
+        setTimeout(closeWeightModal, 80);
+        return;
+      }
+
+      // Exclude product details page which has its own on-page weight radio selector
+      if (form.classList.contains('purchase-form')) return;
+
+      const product = extractProductData(form);
+      if (product && product.priceType === 'kg') {
+        e.preventDefault();
+        e.stopPropagation();
+        openWeightModal(product);
+      }
+    }, true);
+
+  })();
+</script>
