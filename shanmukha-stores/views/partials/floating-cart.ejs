@@ -305,6 +305,19 @@
       // FIRST PRODUCT: If cart is currently empty (0 items), navigate directly to /cart!
       // Do NOT preventDefault! Let standard form submission execute.
       if (currentCount === 0) {
+        try {
+          const pidMatch = form.action.match(/\/cart\/add\/(\d+)/);
+          const productId = pidMatch ? pidMatch[1] : null;
+          const formData = new FormData(form);
+          const qty = parseInt(formData.get('quantity') || '1', 10) || 1;
+          const weight = formData.get('selected_weight') || null;
+          if (productId) {
+            let localCart = [];
+            try { localCart = JSON.parse(localStorage.getItem('shanmukha_guest_cart')) || []; } catch(e){}
+            localCart.push({ product_id: productId, quantity: qty, selected_weight: weight });
+            localStorage.setItem('shanmukha_guest_cart', JSON.stringify(localCart));
+          }
+        } catch(e) {}
         return;
       }
 
@@ -382,6 +395,24 @@
         }
 
         if (res.ok && data.ok) {
+          try {
+            const pidMatch = form.action.match(/\/cart\/add\/(\d+)/);
+            const productId = pidMatch ? pidMatch[1] : null;
+            const qty = parseInt(params.get('quantity') || '1', 10) || 1;
+            const weight = params.get('selected_weight') || null;
+            if (productId) {
+              let localCart = [];
+              try { localCart = JSON.parse(localStorage.getItem('shanmukha_guest_cart')) || []; } catch(e){}
+              const exIdx = localCart.findIndex(i => String(i.product_id) === String(productId) && String(i.selected_weight || '') === String(weight || ''));
+              if (exIdx > -1) {
+                localCart[exIdx].quantity = (Number(localCart[exIdx].quantity) || 1) + qty;
+              } else {
+                localCart.push({ product_id: productId, quantity: qty, selected_weight: weight });
+              }
+              localStorage.setItem('shanmukha_guest_cart', JSON.stringify(localCart));
+            }
+          } catch(e) {}
+
           // Flight lands on cart
           setTimeout(() => {
             if (flyingClone.parentNode) flyingClone.parentNode.removeChild(flyingClone);

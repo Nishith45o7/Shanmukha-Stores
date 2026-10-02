@@ -2,7 +2,7 @@ const express = require("express");
 const pool = require("../config/db");
 const { normalizeCouponCode, validateCouponForUser } = require("../utils/couponService");
 const { getProductWeightOptions, normalizeWeightLabel, parseWeightToKg } = require("../utils/weightUtils");
-const { getGuestCartItems } = require("../utils/cartService");
+const { getGuestCartItems, mergeGuestCart, saveSession } = require("../utils/cartService");
 
 const router = express.Router();
 
@@ -169,8 +169,9 @@ router.get("/", async (req, res, next) => {
 router.post("/add/:productId", async (req, res) => {
   try {
     const productId = req.params.productId;
-    const quantity = parseInt(req.body.quantity) || 1;
-    const couponCode = (req.body.coupon_code || "").trim().toUpperCase();
+    const body = req.body || {};
+    const quantity = parseInt(body.quantity, 10) || 1;
+    const couponCode = (body.coupon_code || "").trim().toUpperCase();
 
     // Check product exists and has stock
     const productResult = await pool.query(
@@ -193,7 +194,7 @@ router.post("/add/:productId", async (req, res) => {
     let selectedWeight = null;
     if (product.price_type === "kg") {
       const weightOptions = getProductWeightOptions(product);
-      const requestedWeight = normalizeWeightLabel(req.body.selected_weight);
+      const requestedWeight = normalizeWeightLabel(body.selected_weight);
       selectedWeight = requestedWeight || (weightOptions[0] || null);
 
       if (!selectedWeight || !weightOptions.includes(selectedWeight)) {
@@ -291,6 +292,9 @@ router.post("/add/:productId", async (req, res) => {
       req.session.appliedCouponCode = couponCode;
     }
 
+    // Explicitly guarantee session write to PostgreSQL
+    await saveSession(req);
+
     if (wantsJson(req)) {
       return res.json({
         ok: true,
@@ -320,6 +324,7 @@ router.post("/remove/:itemId", async (req, res) => {
     if (!req.session.user) {
       if (req.session.guestCart && Array.isArray(req.session.guestCart)) {
         req.session.guestCart = req.session.guestCart.filter(item => String(item.id) !== String(itemId));
+        await saveSession(req);
       }
       if (wantsJson(req)) {
         return res.json({ ok: true, removed: true });
@@ -398,6 +403,7 @@ router.post("/update/:itemId", async (req, res) => {
 
       if (quantity < 1) {
         req.session.guestCart.splice(itemIndex, 1);
+        await saveSession(req);
         if (wantsJson(req)) return res.json({ ok: true, removed: true });
         return res.redirect("/cart?success=Item removed from cart");
       }
@@ -409,6 +415,7 @@ router.post("/update/:itemId", async (req, res) => {
       );
       if (pRes.rows.length === 0) {
         req.session.guestCart.splice(itemIndex, 1);
+        await saveSession(req);
         if (wantsJson(req)) return res.status(404).json({ ok: false, message: "Product no longer available" });
         return res.redirect("/cart?error=Product no longer available");
       }
@@ -426,6 +433,7 @@ router.post("/update/:itemId", async (req, res) => {
       }
 
       item.quantity = quantity;
+      await saveSession(req);
       if (wantsJson(req)) return res.json({ ok: true, quantity });
       return res.redirect("/cart");
     }
@@ -496,6 +504,7 @@ router.post("/clear", async (req, res) => {
     if (!req.session.user) {
       req.session.guestCart = [];
       req.session.appliedCouponCode = null;
+      await saveSession(req);
       return res.redirect("/cart");
     }
 
@@ -511,6 +520,63 @@ router.post("/clear", async (req, res) => {
   } catch (err) {
     console.error("Clear cart error:", err);
     res.redirect("/cart?error=Failed to clear cart");
+  }
+});
+
+// ============================================================
+// POST SYNC GUEST CART (from client localStorage backup)
+// ============================================================
+router.post("/sync-guest", async (req, res) => {
+  try {
+    let rawItems = req.body.items;
+    if (typeof rawItems === 'string') {
+      try { rawItems = JSON.parse(rawItems); } catch (e) { rawItems = []; }
+    }
+    if (!Array.isArray(rawItems) || rawItems.length === 0) {
+      return res.json({ ok: true, count: 0 });
+    }
+
+    if (req.session && req.session.user) {
+      // User is logged in: merge directly into DB cart
+      await mergeGuestCart(req, req.session.user.id, pool, rawItems);
+      const countRes = await pool.query(
+        `SELECT COALESCE(SUM(ci.quantity), 0) AS count
+         FROM carts c
+         JOIN cart_items ci ON ci.cart_id = c.id
+         WHERE c.user_id = $1`,
+        [req.session.user.id]
+      );
+      return res.json({ ok: true, count: parseInt(countRes.rows[0]?.count || 0) });
+    } else {
+      // Guest: merge into session guestCart
+      req.session.guestCart = req.session.guestCart || [];
+      for (const item of rawItems) {
+        const pId = Number(item.product_id);
+        const qty = Number(item.quantity) || 1;
+        const weight = item.selected_weight || null;
+        if (!pId || qty <= 0) continue;
+
+        const existingIdx = req.session.guestCart.findIndex(
+          i => Number(i.product_id) === pId && (String(i.selected_weight || '') === String(weight || ''))
+        );
+        if (existingIdx > -1) {
+          req.session.guestCart[existingIdx].quantity = Math.max(Number(req.session.guestCart[existingIdx].quantity) || 1, qty);
+        } else {
+          req.session.guestCart.push({
+            id: item.id || `g_${pId}_${Date.now()}`,
+            product_id: pId,
+            quantity: qty,
+            selected_weight: weight
+          });
+        }
+      }
+      await saveSession(req);
+      const count = req.session.guestCart.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+      return res.json({ ok: true, count });
+    }
+  } catch (err) {
+    console.error("Sync guest cart error:", err);
+    return res.status(500).json({ ok: false, message: "Sync failed" });
   }
 });
 

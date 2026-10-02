@@ -89,15 +89,37 @@ const getGuestCartItems = async (req, client = pool) => {
 };
 
 /**
- * Merge guest session cart into database cart when user signs in or registers
+ * Promisified explicit session save to guarantee PostgreSQL write completion
  */
-const mergeGuestCart = async (req, userId, client = pool) => {
-  if (!req || !req.session || !Array.isArray(req.session.guestCart) || req.session.guestCart.length === 0 || !userId) {
-    return;
+const saveSession = (req) => {
+  return new Promise((resolve) => {
+    if (!req || !req.session || typeof req.session.save !== "function") {
+      return resolve();
+    }
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err.message);
+      }
+      resolve();
+    });
+  });
+};
+
+/**
+ * Merge guest session or client backup items into user database cart
+ */
+const mergeGuestCart = async (req, userId, client = pool, overrideItems = null) => {
+  if (!userId) return;
+
+  // Collect candidate items from session or explicit override (e.g. from localStorage)
+  let itemsToMerge = [];
+  if (Array.isArray(overrideItems) && overrideItems.length > 0) {
+    itemsToMerge = [...overrideItems];
+  } else if (req && req.session && Array.isArray(req.session.guestCart) && req.session.guestCart.length > 0) {
+    itemsToMerge = [...req.session.guestCart];
   }
 
-  const guestItems = [...req.session.guestCart];
-  if (guestItems.length === 0) return;
+  if (itemsToMerge.length === 0) return;
 
   try {
     // 1. Get or create user cart
@@ -110,8 +132,8 @@ const mergeGuestCart = async (req, userId, client = pool) => {
       cartId = cartResult.rows[0].id;
     }
 
-    // 2. Merge each guest item
-    for (const item of guestItems) {
+    // 2. Merge each item
+    for (const item of itemsToMerge) {
       const productId = Number(item.product_id);
       const qty = Number(item.quantity) || 1;
       const weight = item.selected_weight || null;
@@ -143,14 +165,20 @@ const mergeGuestCart = async (req, userId, client = pool) => {
       } else {
         const initialQty = Math.min(product.stock, qty);
         await client.query(
-          "INSERT INTO cart_items (cart_id, product_id, quantity, selected_weight) VALUES ($1, $2, $3, $4)",
-          [cartId, productId, initialQty, weight]
+          `INSERT INTO cart_items (cart_id, product_id, quantity, selected_weight) 
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (cart_id, product_id, selected_weight)
+           DO UPDATE SET quantity = LEAST($5, cart_items.quantity + EXCLUDED.quantity)`,
+          [cartId, productId, initialQty, weight, product.stock]
         );
       }
     }
 
     // 3. Clear guest cart once merged
-    req.session.guestCart = [];
+    if (req && req.session) {
+      req.session.guestCart = [];
+      await saveSession(req);
+    }
   } catch (err) {
     console.error("CartService mergeGuestCart error:", err.message);
   }
@@ -160,4 +188,5 @@ module.exports = {
   getGuestCartCount,
   getGuestCartItems,
   mergeGuestCart,
+  saveSession,
 };

@@ -11,7 +11,21 @@ const pool = require("../config/db");
 const { sendPasswordResetEmail, sendVerificationEmail } = require("../utils/mailer");
 const { sendOTP, verifyOTP } = require("../utils/msg91Service");
 const { authLimiter } = require("../middleware/rateLimiter");
-const { mergeGuestCart } = require("../utils/cartService");
+const { mergeGuestCart, saveSession } = require("../utils/cartService");
+
+const parseLocalCart = (raw) => {
+  if (!raw) return null;
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+};
 
 const router = express.Router();
 
@@ -135,10 +149,12 @@ router.post("/register", authLimiter, async (req, res) => {
     };
 
     // Merge any items added by guest into the user's permanent cart
-    await mergeGuestCart(req, newUserId);
+    const localCartItems = parseLocalCart(req.body.local_cart);
+    await mergeGuestCart(req, newUserId, pool, localCartItems);
 
     const redirectUrl = (req.session && req.session.returnTo) ? req.session.returnTo : "/";
     if (req.session) delete req.session.returnTo;
+    await saveSession(req);
     res.redirect(redirectUrl);
   } catch (err) {
     console.error("Register error:", err.message);
@@ -182,7 +198,8 @@ router.post("/login", authLimiter, async (req, res) => {
     };
 
     // Merge any items added by guest into the user's permanent cart
-    await mergeGuestCart(req, user.id);
+    const localCartItems = parseLocalCart(req.body.local_cart);
+    await mergeGuestCart(req, user.id, pool, localCartItems);
 
     if (user.role === "admin" || user.role === "staff") {
       await pool.query(
@@ -200,15 +217,19 @@ router.post("/login", authLimiter, async (req, res) => {
       );
     }
 
-    if (user.role === "staff") {
-      return res.redirect("/staff/dashboard");
-    }
-    if (user.role === "admin") {
-      return res.redirect("/admin/dashboard");
+    const returnTo = req.session ? req.session.returnTo : null;
+    if (req.session) delete req.session.returnTo;
+    await saveSession(req);
+
+    let redirectUrl = "/";
+    if (returnTo) {
+      redirectUrl = returnTo;
+    } else if (user.role === "admin") {
+      redirectUrl = "/admin/dashboard";
+    } else if (user.role === "staff") {
+      redirectUrl = "/staff/dashboard";
     }
 
-    const redirectUrl = (req.session && req.session.returnTo) ? req.session.returnTo : "/";
-    if (req.session) delete req.session.returnTo;
     res.redirect(redirectUrl);
   } catch (err) {
     console.error("Login error:", err.message);
@@ -253,7 +274,8 @@ router.post("/login-otp", authLimiter, async (req, res) => {
     };
 
     // Merge any items added by guest into the user's permanent cart
-    await mergeGuestCart(req, user.id);
+    const localCartItems = parseLocalCart(req.body.local_cart);
+    await mergeGuestCart(req, user.id, pool, localCartItems);
 
     if (user.role === "admin" || user.role === "staff") {
       await pool.query(
@@ -272,15 +294,19 @@ router.post("/login-otp", authLimiter, async (req, res) => {
       );
     }
 
-    if (user.role === "staff") {
-      return res.redirect("/staff/dashboard");
-    }
-    if (user.role === "admin") {
-      return res.redirect("/admin/dashboard");
+    const returnTo = req.session ? req.session.returnTo : null;
+    if (req.session) delete req.session.returnTo;
+    await saveSession(req);
+
+    let redirectUrl = "/";
+    if (returnTo) {
+      redirectUrl = returnTo;
+    } else if (user.role === "admin") {
+      redirectUrl = "/admin/dashboard";
+    } else if (user.role === "staff") {
+      redirectUrl = "/staff/dashboard";
     }
 
-    const redirectUrl = (req.session && req.session.returnTo) ? req.session.returnTo : "/";
-    if (req.session) delete req.session.returnTo;
     res.redirect(redirectUrl);
   } catch (err) {
     console.error("OTP Login error:", err.message);
@@ -664,6 +690,7 @@ router.post("/google", authLimiter, async (req, res) => {
     const returnTo = req.session ? req.session.returnTo : null;
     const guestCart = req.session ? req.session.guestCart : null;
     const appliedCouponCode = req.session ? req.session.appliedCouponCode : null;
+    const localCartItems = parseLocalCart(req.body.local_cart);
 
     req.session.regenerate(async (err) => {
       if (err) {
@@ -683,7 +710,7 @@ router.post("/google", authLimiter, async (req, res) => {
 
       if (guestCart) req.session.guestCart = guestCart;
       if (appliedCouponCode) req.session.appliedCouponCode = appliedCouponCode;
-      await mergeGuestCart(req, user.id);
+      await mergeGuestCart(req, user.id, pool, localCartItems);
 
       // Staff or Admin audit log
       if (user.role === "admin" || user.role === "staff") {
@@ -708,13 +735,15 @@ router.post("/google", authLimiter, async (req, res) => {
       }
 
       let redirectUrl = "/";
-      if (user.role === "admin") {
+      if (returnTo) {
+        redirectUrl = returnTo;
+      } else if (user.role === "admin") {
         redirectUrl = "/admin/dashboard";
       } else if (user.role === "staff") {
         redirectUrl = "/staff/dashboard";
-      } else if (returnTo) {
-        redirectUrl = returnTo;
       }
+
+      await saveSession(req);
 
       return res.status(200).json({
         success: true,
@@ -836,12 +865,18 @@ router.get("/google/callback", async (req, res) => {
       if (appliedCouponCode) req.session.appliedCouponCode = appliedCouponCode;
       await mergeGuestCart(req, user.id);
 
-      if (user.role === "admin") {
-        return res.redirect("/admin/dashboard");
+      let redirectUrl = "/";
+      if (returnTo) {
+        redirectUrl = returnTo;
+      } else if (user.role === "admin") {
+        redirectUrl = "/admin/dashboard";
       } else if (user.role === "staff") {
-        return res.redirect("/staff/dashboard");
+        redirectUrl = "/staff/dashboard";
       }
-      return res.redirect(returnTo || "/");
+
+      await saveSession(req);
+
+      return res.redirect(redirectUrl);
     });
   } catch (err) {
     console.error("Google callback error:", err);

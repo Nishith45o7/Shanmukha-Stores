@@ -415,6 +415,47 @@
     document.addEventListener('DOMContentLoaded', purgeFloatingCart);
     window.addEventListener('load', purgeFloatingCart);
   })();
+
+  // Resilient Guest Cart Backup & Auto-Recovery
+  (function() {
+    try {
+      const serverCount = <%= (typeof cartItems !== 'undefined' && cartItems && cartItems.length) ? cartItems.length : 0 %>;
+      let localCart = [];
+      try { localCart = JSON.parse(localStorage.getItem('shanmukha_guest_cart')) || []; } catch(e){}
+
+      // If server cart appears empty but client has items in localStorage backup, auto-sync and reload!
+      if (serverCount === 0 && localCart.length > 0 && !sessionStorage.getItem('cart_sync_attempted')) {
+        sessionStorage.setItem('cart_sync_attempted', '1');
+        fetch('/cart/sync-guest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: localCart })
+        }).then(r => r.json()).then(data => {
+          if (data && data.ok && data.count > 0) {
+            window.location.reload();
+          }
+        }).catch(() => {});
+      } else if (serverCount > 0) {
+        sessionStorage.removeItem('cart_sync_attempted');
+        // Keep localStorage updated with server cart
+        const currentItems = [];
+        <% if (typeof cartItems !== 'undefined' && cartItems && cartItems.length > 0) { %>
+          <% cartItems.forEach(function(item) { %>
+            currentItems.push({
+              product_id: <%= item.product_id %>,
+              quantity: <%= item.quantity %>,
+              selected_weight: <%= item.selected_weight ? JSON.stringify(item.selected_weight) : 'null' %>
+            });
+          <% }); %>
+        <% } %>
+        if (currentItems.length > 0) {
+          localStorage.setItem('shanmukha_guest_cart', JSON.stringify(currentItems));
+        }
+      } else if (serverCount === 0 && localCart.length === 0) {
+        localStorage.removeItem('shanmukha_guest_cart');
+      }
+    } catch(e) {}
+  })();
 </script>
 
 <%- include('./partials/footer') %>

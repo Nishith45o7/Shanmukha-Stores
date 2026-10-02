@@ -449,6 +449,8 @@ app.use(
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+app.set("trust proxy", 1);
+
 app.use(
   session({
     store: new pgSession({
@@ -458,9 +460,12 @@ app.use(
     }),
     secret: process.env.SESSION_SECRET || "shanmukha_super_secret_key_2026",
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: true,
+    proxy: true,
     cookie: {
       secure: "auto",
+      sameSite: "lax",
+      httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   })

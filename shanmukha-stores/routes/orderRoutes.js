@@ -6,13 +6,15 @@ const { parseWeightToKg } = require("../utils/weightUtils");
 const PDFDocument = require("pdfkit");
 const { paymentCircuitBreaker, CircuitBreakerOpenError, TimeoutError } = require("../utils/circuitBreaker");
 const { generateUpiQrCode, DEFAULT_UPI_ID } = require("../utils/upiQrGenerator");
+const { saveSession } = require("../utils/cartService");
 
 const router = express.Router();
 
-const requireAuth = (req, res, next) => {
-  if (!req.session.user) {
+const requireAuth = async (req, res, next) => {
+  if (!req.session || !req.session.user) {
     if (req.session) {
       req.session.returnTo = req.originalUrl || "/orders/checkout";
+      await saveSession(req);
     }
     return res.redirect("/auth/login?info=" + encodeURIComponent("Please sign in or create an account to proceed to checkout"));
   }

@@ -160,6 +160,28 @@
         }
         return true;
       }
+
+      function injectLocalCart(form) {
+        try {
+          const localCart = localStorage.getItem('shanmukha_guest_cart');
+          if (localCart) {
+            let input = form.querySelector('input[name="local_cart"]');
+            if (!input) {
+              input = document.createElement('input');
+              input.type = 'hidden';
+              input.name = 'local_cart';
+              form.appendChild(input);
+            }
+            input.value = localCart;
+          }
+        } catch(e) {}
+      }
+
+      document.querySelectorAll('#passwordForm, #otpForm').forEach(form => {
+        form.addEventListener('submit', function() {
+          injectLocalCart(this);
+        });
+      });
     </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="/js/google-auth.js" defer></script>

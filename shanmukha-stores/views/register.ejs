@@ -142,6 +142,24 @@
                     alert('Passwords do not match!');
                     return false;
                 }
+
+                try {
+                    const localCart = localStorage.getItem('shanmukha_guest_cart');
+                    if (localCart) {
+                        const form = document.querySelector('form.auth-form');
+                        if (form) {
+                            let input = form.querySelector('input[name="local_cart"]');
+                            if (!input) {
+                                input = document.createElement('input');
+                                input.type = 'hidden';
+                                input.name = 'local_cart';
+                                form.appendChild(input);
+                            }
+                            input.value = localCart;
+                        }
+                    }
+                } catch(e) {}
+
                 return true;
             }
         </script>

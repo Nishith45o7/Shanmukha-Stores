@@ -41,14 +41,18 @@
               return;
             }
             try {
+              let localCart = null;
+              try { localCart = localStorage.getItem('shanmukha_guest_cart'); } catch (e) {}
+
               const res = await fetch("/auth/google", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({ code: response.code }),
+                body: JSON.stringify({ code: response.code, local_cart: localCart }),
               });
               const data = await res.json();
               if (data && data.success) {
+                try { localStorage.removeItem('shanmukha_guest_cart'); } catch (e) {}
                 window.location.href = data.redirectUrl || "/";
               }
             } catch (err) {
