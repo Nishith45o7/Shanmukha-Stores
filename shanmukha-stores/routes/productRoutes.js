@@ -469,4 +469,42 @@ router.get("/collections/:id", async (req, res, next) => {
   }
 });
 
+// ============================================================
+// SUPPORT & POLICY ROUTES
+// ============================================================
+router.get(["/help", "/help-center"], (req, res) => {
+  res.render("help-center", {
+    title: "Help Center & FAQs - Shanmukha Stores",
+    user: res.locals.user || null,
+  });
+});
+
+router.get("/shipping-policy", (req, res) => {
+  res.render("shipping-policy", {
+    title: "Shipping Policy - Shanmukha Stores",
+    user: res.locals.user || null,
+  });
+});
+
+router.get(["/return-policy", "/refund-policy"], (req, res) => {
+  res.render("return-policy", {
+    title: "Return & Refund Policy - Shanmukha Stores",
+    user: res.locals.user || null,
+  });
+});
+
+router.get("/privacy-policy", (req, res) => {
+  res.render("privacy-policy", {
+    title: "Privacy Policy - Shanmukha Stores",
+    user: res.locals.user || null,
+  });
+});
+
+router.get("/terms", (req, res) => {
+  res.render("terms", {
+    title: "Terms & Conditions - Shanmukha Stores",
+    user: res.locals.user || null,
+  });
+});
+
 module.exports = router;

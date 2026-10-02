@@ -126,7 +126,20 @@ router.post("/register", authLimiter, async (req, res) => {
       });
     }
 
-    res.redirect("/auth/login?success=Account created successfully! Please login.");
+    const newUserId = insertResult.rows[0].id;
+    req.session.user = {
+      id: newUserId,
+      name: full_name,
+      role: "user",
+      profile_image: null,
+    };
+
+    // Merge any items added by guest into the user's permanent cart
+    await mergeGuestCart(req, newUserId);
+
+    const redirectUrl = (req.session && req.session.returnTo) ? req.session.returnTo : "/";
+    if (req.session) delete req.session.returnTo;
+    res.redirect(redirectUrl);
   } catch (err) {
     console.error("Register error:", err.message);
     res.redirect("/auth/register?error=" + encodeURIComponent(err.message));
@@ -278,7 +291,7 @@ router.post("/login-otp", authLimiter, async (req, res) => {
 /* ===============================
    LOGOUT
 =============================== */
-router.post("/logout", async (req, res) => {
+const handleLogout = async (req, res) => {
   try {
     if (req.session && req.session.user && (req.session.user.role === "admin" || req.session.user.role === "staff")) {
       await pool.query(
@@ -302,7 +315,10 @@ router.post("/logout", async (req, res) => {
     res.clearCookie("token");
     res.redirect("/");
   });
-});
+};
+
+router.post("/logout", handleLogout);
+router.get("/logout", handleLogout);
 
 /* ===============================
    FORGOT PASSWORD

@@ -190,15 +190,15 @@
                                             </span>
                                             <% } %>
                                     </a>
-                                    <a href="/cart">
-                                        🛍 Cart
-                                        <% if (typeof cartCount !=='undefined' && cartCount> 0) { %>
-                                            <span class="nav-badge">
-                                                <%= cartCount %>
-                                            </span>
-                                            <% } %>
-                                    </a>
+                                <% } %>
+                                <a href="/cart" class="<%= typeof title !== 'undefined' && title && title.includes('Cart') ? 'active' : '' %>">
+                                    🛍 Cart
+                                    <% if (typeof cartCount !=='undefined' && cartCount> 0) { %>
+                                        <span class="nav-badge">
+                                            <%= cartCount %>
+                                        </span>
                                     <% } %>
+                                </a>
                             </nav>
 
                             <!-- Right side -->
@@ -259,9 +259,9 @@
                         <a href="/">🏠 Home</a>
                         <a href="/products">🛒 Shop All Products</a>
                         <a href="/collections">🏷️ Collections</a>
+                        <a href="/cart">🛍 Cart <% if (typeof cartCount !=='undefined' && cartCount> 0) { %>(<%=
+                                    cartCount %>)<% } %></a>
                         <% if (typeof user !=='undefined' && user) { %>
-                            <a href="/cart">🛍 Cart <% if (typeof cartCount !=='undefined' && cartCount> 0) { %>(<%=
-                                        cartCount %>)<% } %></a>
                             <a href="/wishlist">❤️ Wishlist <% if (typeof wishlistCount !=='undefined' && wishlistCount>
                                     0) {
                                     %>(<%= wishlistCount %>)<% } %></a>
