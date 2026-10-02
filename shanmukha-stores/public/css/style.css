@@ -41,6 +41,38 @@
   --nav-h: 72px;
 }
 
+/* ── ULTRA-MODERN LUXURY CUSTOM SCROLLBAR ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(28, 74, 48, 0.22);
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(28, 74, 48, 0.55);
+}
+
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Standard Firefox & Modern Browsers */
+html, body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(28, 74, 48, 0.25) transparent;
+}
+
 /* ── RESET & BASE ── */
 *,
 *::before,
