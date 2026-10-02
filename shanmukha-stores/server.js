@@ -286,6 +286,14 @@ const ensureDatabaseSchema = async () => {
       product_id INT REFERENCES products(id) ON DELETE CASCADE,
       PRIMARY KEY (collection_id, product_id)
     )`,
+    `CREATE TABLE IF NOT EXISTS uploaded_files (
+      id SERIAL PRIMARY KEY,
+      file_path TEXT UNIQUE NOT NULL,
+      mime_type VARCHAR(100) NOT NULL,
+      data BYTEA NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_uploaded_files_path ON uploaded_files(file_path)`,
     `INSERT INTO store_settings (setting_key, setting_value)
      VALUES
       ('store_name', 'Shanmukha Stores'),
@@ -375,7 +383,21 @@ app.get("/img-optimize", async (req, res) => {
     const cleanSrc = String(src).replace(/^(\.\.[\/\\])+/, "").replace(/^\/+/, "");
     const safePath = path.join(__dirname, "public", cleanSrc);
 
-    if (!require("fs").existsSync(safePath)) {
+    let inputSource = null;
+    if (require("fs").existsSync(safePath)) {
+      inputSource = safePath;
+    } else {
+      const dbPath = `/${cleanSrc}`;
+      const dbResult = await pool.query(
+        "SELECT mime_type, data FROM uploaded_files WHERE file_path = $1 OR file_path = $2 LIMIT 1",
+        [dbPath, cleanSrc]
+      );
+      if (dbResult.rows.length > 0) {
+        inputSource = dbResult.rows[0].data;
+      }
+    }
+
+    if (!inputSource) {
       return res.status(404).send("Image not found");
     }
 
@@ -387,7 +409,7 @@ app.get("/img-optimize", async (req, res) => {
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
 
     const sharp = require("sharp");
-    let transform = sharp(safePath);
+    let transform = sharp(inputSource);
     if (width && width > 0 && width <= 2400) {
       transform = transform.resize(width, null, { withoutEnlargement: true });
     }
@@ -432,6 +454,31 @@ publicDirs.forEach((dir) => {
     app.use("/uploads", express.static(uploadsPath, staticCacheOptions));
   }
   app.use(express.static(dir, staticCacheOptions));
+});
+
+// Database-backed storage fallback for user uploads (crucial for serverless environments like Vercel with read-only filesystems)
+app.use("/uploads", async (req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  try {
+    const rawPath = (req.baseUrl || "") + req.path;
+    const cleanPath = decodeURIComponent(rawPath.split("?")[0]);
+    const normalizedPath = cleanPath.startsWith("/") ? cleanPath : "/" + cleanPath;
+    const result = await pool.query(
+      "SELECT mime_type, data FROM uploaded_files WHERE file_path = $1 OR file_path = $2 LIMIT 1",
+      [normalizedPath, cleanPath]
+    );
+    if (result.rows.length > 0) {
+      const file = result.rows[0];
+      res.setHeader("Content-Type", file.mime_type || "application/octet-stream");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      if (req.method === "HEAD") return res.status(200).end();
+      return res.send(file.data);
+    }
+    return next();
+  } catch (err) {
+    console.error("Error fetching uploaded file from DB:", err.message);
+    return next();
+  }
 });
 
 // ============================================================

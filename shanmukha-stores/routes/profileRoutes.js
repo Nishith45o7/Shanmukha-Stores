@@ -163,6 +163,8 @@ const upload = multer({
   }
 });
 
+const { saveUploadedBuffer } = require("../utils/imageUtils");
+
 // ============================================================
 // POST UPLOAD PROFILE IMAGE (AJAX)
 // ============================================================
@@ -173,17 +175,21 @@ router.post("/upload-image", requireAuth, upload.single("profile_image_file"), a
     const userId = req.session.user.id;
     const ext = path.extname(req.file.originalname) || ".jpg";
     const filename = `profile_${userId}_${Date.now()}${ext}`;
-    const filepath = path.join(profileUploadDir, filename);
 
+    let buffer = req.file.buffer;
+    let mimeType = req.file.mimetype || "image/jpeg";
     if (sharp) {
-      await sharp(req.file.buffer)
-        .resize(200, 200, { fit: "cover" })
-        .toFile(filepath);
-    } else {
-      await fs.promises.writeFile(filepath, req.file.buffer);
+      try {
+        buffer = await sharp(req.file.buffer)
+          .resize(200, 200, { fit: "cover" })
+          .toBuffer();
+      } catch (sharpErr) {
+        console.warn("Profile sharp resize error:", sharpErr.message);
+      }
     }
 
     const imageUrl = `/uploads/profiles/${filename}`;
+    await saveUploadedBuffer(imageUrl, buffer, mimeType, profileUploadDir, filename);
 
     await pool.query("UPDATE users SET profile_image = $1 WHERE id = $2", [imageUrl, userId]);
     req.session.user.profile_image = imageUrl;
