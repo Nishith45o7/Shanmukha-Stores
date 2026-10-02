@@ -102,6 +102,44 @@
         </div>
 
         <div class="card">
+            <div class="card-hd" style="display:flex;justify-content:space-between;align-items:center;">
+                <h3>🚚 Delhivery Shipping</h3>
+                <% if (order.awb_number) { %>
+                    <span class="badge bg-green" style="font-size:11px;">Manifested</span>
+                <% } else { %>
+                    <span class="badge bg-orange" style="font-size:11px;">Unmanifested</span>
+                <% } %>
+            </div>
+            <div class="card-body">
+                <% if (order.awb_number) { %>
+                    <div style="margin-bottom:12px;">
+                        <div style="font-size:12px;color:var(--gray-500);text-transform:uppercase;font-weight:600;">Waybill (AWB)</div>
+                        <div style="font-size:15px;font-weight:700;color:var(--black);font-family:monospace;letter-spacing:0.5px;">
+                            <%= order.awb_number %>
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <a href="/admin/orders/<%= order.id %>/delhivery-label" target="_blank" class="btn btn-black" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                            🏷️ Print Official Barcode Label
+                        </a>
+                        <a href="https://www.delhivery.com/track/package/<%= order.awb_number %>" target="_blank" class="btn btn-ghost" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                            🔍 Live Track on Delhivery
+                        </a>
+                    </div>
+                <% } else { %>
+                    <p style="font-size:13px;color:var(--gray-600);margin-bottom:14px;line-height:1.4;">
+                        Push this order directly to your Delhivery One account to generate an official AWB number, book courier pickup, and print the shipping label.
+                    </p>
+                    <form action="/admin/orders/<%= order.id %>/ship-delhivery" method="POST" onsubmit="return confirm('Dispatch Order #<%= order.id %> with Delhivery?')">
+                        <button type="submit" class="btn btn-blue" style="width:100%;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;">
+                            🚚 Ship Order with Delhivery
+                        </button>
+                    </form>
+                <% } %>
+            </div>
+        </div>
+
+        <div class="card">
             <div class="card-hd">
                 <h3>Payment Information</h3>
             </div>

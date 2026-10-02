@@ -77,23 +77,39 @@
                         <% } %>
                     </td>
                     <td style="color:var(--gray-500);">
-                        <% if (o.estimated_delivery_at) { %>
+                        <% if (o.awb_number) { %>
+                            <div style="display:flex;flex-direction:column;gap:3px;">
+                                <span style="font-weight:700;color:#0369a1;font-size:12px;">🚚 <%= o.courier_name || 'Delhivery' %></span>
+                                <a href="/admin/orders/<%= o.id %>/delhivery-track" target="_blank" style="font-size:11px;color:#2563eb;text-decoration:underline;font-family:monospace;" title="Track on Delhivery">AWB: <%= o.awb_number %></a>
+                            </div>
+                        <% } else if (o.estimated_delivery_at) { %>
                             <%= new Date(o.estimated_delivery_at).toLocaleString('en-IN') %>
                         <% } else { %>
                             -
                         <% } %>
                     </td>
                     <td>
-                        <div style="display:flex;gap:6px;align-items:center;">
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                             <a href="/admin/orders/<%= o.id %>" class="btn btn-ghost btn-sm">View</a>
                             <a href="/admin/orders/<%= o.id %>/bill" class="btn btn-black btn-sm" target="_blank" rel="noopener">Print Bill</a>
                             <% if (o.status !== 'Cancelled') { %>
-                            <button class="btn btn-blue btn-sm"
-                                data-order-id="<%= o.id %>"
-                                data-status="<%= o.status %>"
-                                data-eta="<%= o.estimated_delivery_at ? new Date(o.estimated_delivery_at).toISOString().slice(0,16) : '' %>"
-                                data-note="<%= o.delivery_note || '' %>"
-                                onclick="openStatusModal(this)">Update</button>
+                                <% if (!o.awb_number) { %>
+                                    <form action="/admin/orders/<%= o.id %>/ship-delhivery" method="POST" style="margin:0;" onsubmit="return confirm('Dispatch Order #<%= o.id %> with Delhivery? This will automatically manifest the order in Delhivery One and generate an official AWB.')">
+                                        <button type="submit" class="btn btn-sm" style="background:#0284c7;color:#fff;font-weight:600;display:inline-flex;align-items:center;gap:4px;" title="Push to Delhivery One">
+                                            🚚 Ship
+                                        </button>
+                                    </form>
+                                <% } else { %>
+                                    <a href="/admin/orders/<%= o.id %>/delhivery-label" target="_blank" class="btn btn-sm" style="background:#059669;color:#fff;font-weight:600;display:inline-flex;align-items:center;gap:4px;" title="Print Delhivery Shipping Barcode Label">
+                                        🏷️ Label
+                                    </a>
+                                <% } %>
+                                <button class="btn btn-blue btn-sm"
+                                    data-order-id="<%= o.id %>"
+                                    data-status="<%= o.status %>"
+                                    data-eta="<%= o.estimated_delivery_at ? new Date(o.estimated_delivery_at).toISOString().slice(0,16) : '' %>"
+                                    data-note="<%= o.delivery_note || '' %>"
+                                    onclick="openStatusModal(this)">Update</button>
                             <% } %>
                         </div>
                     </td>

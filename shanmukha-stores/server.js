@@ -326,6 +326,11 @@ const ensureDatabaseSchema = async () => {
   await pool.query("ALTER TABLE collaborations ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE");
   await pool.query("ALTER TABLE users ALTER COLUMN password DROP NOT NULL");
+  await pool.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS awb_number VARCHAR(100)");
+  await pool.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_name VARCHAR(50) DEFAULT 'Delhivery'");
+  await pool.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_label_url TEXT");
+  await pool.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS delhivery_status VARCHAR(100)");
+  await pool.query("ALTER TABLE orders ADD COLUMN IF NOT EXISTS pickup_location VARCHAR(150) DEFAULT 'Shanmukha_Stores_Vijayawada'");
 
   await pool.query("ALTER TABLE cart_items DROP CONSTRAINT IF EXISTS cart_items_cart_id_product_id_key");
   try {

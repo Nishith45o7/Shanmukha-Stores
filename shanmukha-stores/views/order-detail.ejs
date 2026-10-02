@@ -128,6 +128,22 @@
           </div>
         <% } %>
 
+        <% if (order.awb_number) { %>
+          <div class="order-kv-item">
+            <span class="kv-label">Courier Partner</span>
+            <span style="font-weight: 700; color: #0284c7;">🚚 <%= order.courier_name || 'Delhivery' %></span>
+          </div>
+          <div class="order-kv-item">
+            <span class="kv-label">Tracking Number (AWB)</span>
+            <strong style="font-family: monospace; letter-spacing: 0.5px;"><%= order.awb_number %></strong>
+          </div>
+          <div style="margin-top: 10px;">
+            <a href="https://www.delhivery.com/track/package/<%= order.awb_number %>" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border-radius: 8px; padding: 10px; font-weight: 700; text-decoration: none;">
+              🔍 Track Live on Delhivery
+            </a>
+          </div>
+        <% } %>
+
         <% if (order.delivery_note) { %>
           <div class="order-callout-box update-box">
             <div class="callout-header">📦 Delivery Update:</div>

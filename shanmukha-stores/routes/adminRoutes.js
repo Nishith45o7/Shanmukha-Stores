@@ -13,6 +13,7 @@ const {
     getProductWeightOptions,
 } = require('../utils/weightUtils');
 const { processImageToWebP, processMediaFile } = require('../utils/imageUtils');
+const { createShipmentForOrder, getPackingSlip, trackShipment } = require('../services/delhiveryService');
 
 const qrCodeUploadDir = path.join(__dirname, '..', 'public', 'uploads');
 try {
@@ -1216,6 +1217,52 @@ router.post('/orders/status/:id', isStaff, async (req, res) => {
         });
         res.redirect('/admin/orders?success=Order status updated');
     } catch (err) { res.redirect('/admin/orders?error=' + encodeURIComponent(err.message)); }
+});
+
+// ==========================================
+// DELHIVERY ONE LOGISTICS & SHIPPING
+// ==========================================
+router.post('/orders/:id/ship-delhivery', isStaff, async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const result = await createShipmentForOrder(orderId);
+        await logActivity(req.session.user.id, "Manifested Delhivery Shipment", { orderId, waybill: result.waybill });
+        return res.redirect(`/admin/orders?success=${encodeURIComponent(`Order #${orderId} successfully manifested with Delhivery! AWB: ${result.waybill}`)}`);
+    } catch (err) {
+        console.error("Delhivery Ship Error:", err.message);
+        return res.redirect(`/admin/orders?error=${encodeURIComponent(err.message)}`);
+    }
+});
+
+router.get('/orders/:id/delhivery-label', isStaff, async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const orderRes = await pool.query("SELECT awb_number FROM orders WHERE id = $1", [orderId]);
+        if (!orderRes.rows.length || !orderRes.rows[0].awb_number) {
+            return res.status(404).send("No Delhivery AWB number found for this order");
+        }
+        const slip = await getPackingSlip(orderRes.rows[0].awb_number);
+        if (slip.html) {
+            res.setHeader('Content-Type', 'text/html');
+            return res.send(slip.html);
+        }
+        return res.redirect(`https://track.delhivery.com/api/p/packing_slip?wbns=${orderRes.rows[0].awb_number}`);
+    } catch (err) {
+        return res.status(500).send("Error generating shipping label: " + err.message);
+    }
+});
+
+router.get('/orders/:id/delhivery-track', isStaff, async (req, res) => {
+    try {
+        const orderId = req.params.id;
+        const orderRes = await pool.query("SELECT awb_number FROM orders WHERE id = $1", [orderId]);
+        if (!orderRes.rows.length || !orderRes.rows[0].awb_number) {
+            return res.redirect(`/admin/orders?error=No tracking number available for this order`);
+        }
+        return res.redirect(`https://www.delhivery.com/track/package/${orderRes.rows[0].awb_number}`);
+    } catch (err) {
+        return res.redirect(`/admin/orders?error=` + encodeURIComponent(err.message));
+    }
 });
 
 router.get('/orders/cancelled', isStaff, async (req, res) => {
